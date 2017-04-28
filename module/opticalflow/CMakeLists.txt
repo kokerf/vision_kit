@@ -1,0 +1,1 @@
+add_executable(optflow test/test_optflow.cpp)
