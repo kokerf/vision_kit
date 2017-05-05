@@ -21,14 +21,19 @@ int main(int argc, char const *argv[])
         cout << "Can not open image: " << argv[1] << endl;
         return -1;
     }
+    cv::Mat gray;
+    cvtColor(origin, gray, COLOR_BGR2GRAY);
 
+    //!
+    //! Testing Pyramidal
+    //!
     float scale = 2;
     uint16_t level = 3;
-    cout << "---------------------------------" << endl
-         << "--- Creating Pyramidal Images    " << endl
+    cout << "=================================" << endl
+         << "--- Testing Pyramidal Images     " << endl
          << "--- Scale: " << scale << endl
          << "--- Level: " << level << endl
-         << "---------------------------------" << endl;
+         << "=================================" << endl;
 
     vector<Mat> images;
     vk::computePyramid(origin, images, scale, level);
@@ -47,6 +52,31 @@ int main(int argc, char const *argv[])
         cols += images[i].cols;
     }
 
-    imshow("pyr", pyramid);
+    imshow("pyramid", pyramid);
     waitKey(0);
+    cv::destroyWindow("pyramid");
+
+    //!
+    //! Testing convolution
+    //!
+    cout << endl
+        << "=================================" << endl
+        << "--- Testing  convolution          " << endl
+        << "=================================" << endl;
+    cv::Mat kernel1 = (Mat_<float>(3,3)<< -1, 0, 1, -2, 0, 2, -1, 0, 1); kernel1/=8;
+    cv::Mat kernel2 = (Mat_<float>(3,3)<< -1,-2,-1, 0, 0, 0, 1, 2, 1); kernel2/=8;
+    cv::Mat kernel3 = (Mat_<float>(3,3)<< 1, 1, 1, 1, 1, 1, 1, 1, 1); kernel3/=9*256;
+    cv::Mat convolution1, convolution2, convolution3;
+    vk::conv(gray, convolution1, kernel1);
+    vk::conv(gray, convolution2, kernel2);
+    vk::conv(gray, convolution3, kernel3);
+    cv::Mat convolution = cv::Mat(cv::Size(gray.cols*3, gray.rows), CV_32FC1);
+    convolution1.copyTo(convolution.colRange(0, gray.cols));
+    convolution2.copyTo(convolution.colRange(gray.cols, gray.cols*2));
+    convolution3.copyTo(convolution.colRange(gray.cols*2, gray.cols*3));
+    imshow("convolution", convolution);
+    waitKey(0);
+    cv::destroyWindow("convolution");
+
+    return 0;
 }
