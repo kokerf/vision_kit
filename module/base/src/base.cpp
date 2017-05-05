@@ -1,4 +1,3 @@
-#include <stdio.h>
 #include <vector>
 #include <stdint.h>
 #include <assert.h>
