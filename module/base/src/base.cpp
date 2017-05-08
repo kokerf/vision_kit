@@ -195,7 +195,7 @@ float interpolateMat_8u(const cv::Mat& mat, float u, float v)
     //! addr(Mij) = M.data + M.step[0]*i + M.step[1]*j
     const int stride = mat.step.p[0];
     unsigned char* ptr = mat.data + y*stride + x;
-    return w00*ptr[0] + w01*ptr[stride] + w10*ptr[1] + w11*ptr[stride + 1] + 0.5;//! add 0.5 to round off!
+    return w00*ptr[0] + w01*ptr[stride] + w10*ptr[1] + w11*ptr[stride + 1];
 }
 // float interpolateMat_8u(const cv::Mat& mat, float u, float v)
 // {

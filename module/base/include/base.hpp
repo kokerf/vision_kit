@@ -6,9 +6,11 @@
 
 #include <opencv2/core/core.hpp>
 
-#define  VK_DESCALE(x,n)     (((x) + (1 << ((n)-1))) >> (n))
+#define VK_EPS 1e-20
+#define VK_DESCALE(x,n) (((x) + (1 << ((n)-1))) >> (n))
 
 namespace vk{
+
 
 /**
  * [ComputePyramid computing pyramid images]

@@ -8,14 +8,36 @@
 
 namespace vk{
 
+void computePyrLK(const cv::Mat& img_prev, const cv::Mat& img_next, std::vector<cv::Point2f>& pts_prev, std::vector<cv::Point2f>& pts_next,
+        std::vector<float>& errors, const cv::Size& win_size, const int level = 3, const int times = 40, const float eps = 0.001);
+
 class OpticalFlow
 {
 public:
-    OpticalFlow();
+    OpticalFlow(const cv::Size& win_size, const int level = 3, const int times = 40, const float eps = 0.001);
     ~OpticalFlow();
-    static void computePyrLK(const cv::Mat& img_prev, const cv::Mat& img_next, std::vector<cv::Point2f>& points_prev, std::vector<cv::Point2f>& points_next,
-        std::vector<float>& errors, const cv::Size& size, const int level = 3, const int times = 40, const float eps = 0.001);
 
+    void computePyrLK(const cv::Mat& img_prev, const cv::Mat& img_next, const std::vector<cv::Point2f>& pts_prev,
+        std::vector<cv::Point2f>& pts_next, std::vector<float>& errors);
+
+    void createPyramid(const cv::Mat& img_prev, const cv::Mat& img_next);
+
+    void trackPoint(const cv::Point2f& pt_prev, cv::Point2f& pt_next, const int max_level, float& error, bool& status);
+
+    int getMaxLevel() {
+        return max_level_;
+    }
+
+private:
+    cv::Size win_size_;
+    int max_level_;
+    double criteria_;
+    int max_iters_;
+    int win_eara_;
+    double EPS_S2_;
+
+    std::vector<cv::Mat> pyr_prev_, pyr_next_;
+    std::vector<cv::Mat> pyr_grad_x_, pyr_grad_y_;
 };//! OpticalFlow
 
 
