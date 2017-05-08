@@ -6,6 +6,8 @@
 
 #include <opencv2/core/core.hpp>
 
+#define  VK_DESCALE(x,n)     (((x) + (1 << ((n)-1))) >> (n))
+
 namespace vk{
 
 /**
@@ -19,12 +21,21 @@ namespace vk{
 bool computePyramid(const cv::Mat& image, std::vector<cv::Mat>& image_pyramid, const float scale_factor = 1.2f, const uint16_t level = 3);
 
 /**
- * [conv convolute images with 3x3 kernel]
+ * [conv_32f convolute images with 3x3 kernel]
  * @param src    [input image, type should be CV_8UC1]
  * @param dest   [output image, type is CV_32FC1]
- * @param kernel [3x3 kernel]
+ * @param kernel [3x3 kernel, type is CV_32FC1]
  */
-void conv(const cv::Mat& src, cv::Mat& dest, const cv::Mat& kernel);
+void conv_32f(const cv::Mat& src, cv::Mat& dest, const cv::Mat& kernel, const int div);
+
+/**
+ * [conv_16S description]
+ * @param src    [input image, type should be CV_8UC1]
+ * @param dest   [output image, type is CV_16SC1]
+ * @param kernel [3x3 kernel, type is CV_16SC1]
+ * @param div    [divide after convolution]
+ */
+void conv_16s(const cv::Mat& src, cv::Mat& dest, const cv::Mat& kernel, const int div);
 
 /**
  * [makeBorders make border for image by copying margin]
@@ -34,6 +45,15 @@ void conv(const cv::Mat& src, cv::Mat& dest, const cv::Mat& kernel);
  * @param row_side [added rows for eache side]
  */
 void makeBorders(const cv::Mat& src, cv::Mat& dest, const int col_side = 1, const int row_side = 1);
+
+
+//! https://github.com/uzh-rpg/rpg_vikit/blob/master/vikit_common/include/vikit/vision.h
+//! WARNING This function does not check whether the x/y is within the border
+float interpolateMat_32f(const cv::Mat& mat, float u, float v);
+
+int16_t interpolateMat_16s(const cv::Mat& mat, float u, float v);
+
+float interpolateMat_8u(const cv::Mat& mat, float u, float v);
 
 }//! vk
 
