@@ -2,9 +2,12 @@
 #define _OPTICAL_FLOW_HPP_
 
 #include <vector>
+#include <stdint.h>
 
 #include <opencv2/core/core.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
+
+#define deriv_type int16_t
 
 namespace vk{
 
@@ -24,9 +27,7 @@ public:
 
     void trackPoint(const cv::Point2f& pt_prev, cv::Point2f& pt_next, const int max_level, float& error, bool& status);
 
-    int getMaxLevel() {
-        return max_level_;
-    }
+    void calcGradient();
 
 private:
     cv::Size win_size_;
