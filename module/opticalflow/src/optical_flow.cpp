@@ -118,23 +118,21 @@ void OpticalFlow::trackPoint(const cv::Point2f& pt_prev, cv::Point2f& pt_next, c
         cv::Point2f win_end(win_start.x + win_size_.width, win_start.y + win_size_.height);
 
 
-        // float a = p[0] - ip[0];
-        // float b = p[1] - ip[1];
-        //! cite from OpenCV
-        // const int16_t W_BITS = 14;//! for a and b is smaller than 1, int is 16bit
-        // //const float FLT_SCALE = 1.f/(1 << 20);
-        // int16_t w00 = roundl((1.f - a)*(1.f - b)*(1 << W_BITS));
-        // int16_t w01 = roundl(a*(1.f - b)*(1 << W_BITS));
-        // int16_t w10 = roundl((1.f - a)*b*(1 << W_BITS));
-        // int16_t w11 = (1 << W_BITS) -w00 - w01 - w10;
         int x = floor(p.x);
         int y = floor(p.y);
-        float a = p.x - x;
-        float b = p.y - y;
+        float subpix_x = p.x - x;
+        float subpix_y = p.y - y;
+        //! cite from OpenCV
+        const int16_t W_BITS = 14;//! for a and b is smaller than 1, int is 16bit
+        //const float FLT_SCALE = 1.f/(1 << 20);
+        int16_t iw00 = roundl((1.f - subpix_x)*(1.f - subpix_y)*(1 << W_BITS));
+        int16_t iw01 = roundl(subpix_x*(1.f - subpix_y)*(1 << W_BITS));
+        int16_t iw10 = roundl((1.f - subpix_x)*subpix_y*(1 << W_BITS));
+        int16_t iw11 = (1 << W_BITS) - iw00 - iw01 - iw10;
 
-        float w00 = (1.0f - a)*(1.0f - b);
-        float w01 = (1.0f - a)*b;
-        float w10 = a*(1.0f - b);
+        float w00 = (1.0f - subpix_x)*(1.0f - subpix_y);
+        float w01 = (1.0f - subpix_x)*subpix_y;
+        float w10 = subpix_x*(1.0f - subpix_y);
         float w11 = 1.0f - w00 - w01 - w10;
 
         const cv::Mat &pyr_prev = pyr_prev_[l];
@@ -153,7 +151,7 @@ void OpticalFlow::trackPoint(const cv::Point2f& pt_prev, cv::Point2f& pt_next, c
         cv::Mat prev_w = cv::Mat::zeros(win_size_, CV_32FC1);
         cv::Mat grad_wx = cv::Mat::zeros(win_size_, cv::DataType<deriv_type>::type);
         cv::Mat grad_wy = cv::Mat::zeros(win_size_, cv::DataType<deriv_type>::type);
-        float* pIpw = prev_w.ptr<float>(0);
+        float* pTwi = prev_w.ptr<float>(0);
         deriv_type* pGwx = grad_wx.ptr<deriv_type>(0);
         deriv_type* pGwy = grad_wy.ptr<deriv_type>(0);
         //! get spatial gradient matrix
@@ -166,17 +164,17 @@ void OpticalFlow::trackPoint(const cv::Point2f& pt_prev, cv::Point2f& pt_next, c
             const deriv_type* pGx = &grad_x.ptr<deriv_type>(yi+y_start)[x_start];
             const deriv_type* pGy = &grad_y.ptr<deriv_type>(yi+y_start)[x_start];
 
-            for(int ix = 0; ix < win_size_.width; ++ix, pGwx++, pGwy++, pIpw++)
+            for(int xi = 0; xi < win_size_.width; ++xi, pGwx++, pGwy++, pTwi++)
             {
-                float im = w00*pTw[ix] + w01*pTw[ix+pyr_cols] + w10*pTw[ix+1] + w11*pTw[ix+pyr_cols+1];
-                deriv_type dx = w00*pGx[ix] + w01*pGx[ix+pyr_cols] + w10*pGx[ix+1] + w11*pGx[ix+pyr_cols+1];
-                deriv_type dy = w00*pGy[ix] + w01*pGy[ix+pyr_cols] + w10*pGy[ix+1] + w11*pGy[ix+pyr_cols+1];
-                //float im = interpolateMat_8u(pyr_prev, win_start.x+ix, win_start.y+yi);
-                //float dx = interpolateMat_32f(grad_x, win_start.x +ix, win_start.y +yi);
-                //float dy = interpolateMat_32f(grad_y, win_start.x +ix, win_start.y +yi);
+                float Ti = (w00*pTw[xi] + w01*pTw[xi+pyr_cols] + w10*pTw[xi+1] + w11*pTw[xi+pyr_cols+1]);
+                deriv_type dx = VK_DESCALE(iw00*pGx[xi] + iw01*pGx[xi+pyr_cols] + iw10*pGx[xi+1] + iw11*pGx[xi+pyr_cols+1], W_BITS);
+                deriv_type dy = VK_DESCALE(iw00*pGy[xi] + iw01*pGy[xi+pyr_cols] + iw10*pGy[xi+1] + iw11*pGy[xi+pyr_cols+1], W_BITS);
+                //float Ti = interpolateMat_8u(pyr_prev, win_start.x+xi, win_start.y+yi);
+                //float dx = interpolateMat_32f(grad_x, win_start.x +xi, win_start.y +yi);
+                //float dy = interpolateMat_32f(grad_y, win_start.x +xi, win_start.y +yi);
 
                 //! store in Mats of win_size_
-                (*pIpw) = im;
+                (*pTwi) = Ti;
                 (*pGwx) = dx;
                 (*pGwy) = dy;
 
@@ -202,36 +200,49 @@ void OpticalFlow::trackPoint(const cv::Point2f& pt_prev, cv::Point2f& pt_next, c
         cv::Mat diff_img = cv::Mat::zeros(win_size_, CV_32FC1);
         while(it++ < max_iters_)
         {
-            if(q.x < half_win_width || q.x > pyr_cols - half_win_width ||
-                q.y < half_win_height || q.y > pyr_rows - half_win_height)
+            win_start = cv::Point2f(q.x - half_win_width, q.y - half_win_height);
+            win_end = cv::Point2f(win_start.x + win_size_.width, win_start.y + win_size_.height);
+            if(win_start.x < 0 || win_start.y < 0 || win_end.x > pyr_cols || win_end.y > pyr_rows)
             {
                 if(l == 0) {status = false;}
                 break;
             }
+
+            int x = floor(q.x);
+            int y = floor(q.y);
+            float subpix_x = q.x - x;
+            float subpix_y = q.y - y;
+
+            float w00 = (1.0f - subpix_x)*(1.0f - subpix_y);
+            float w01 = (1.0f - subpix_x)*subpix_y;
+            float w10 = subpix_x*(1.0f - subpix_y);
+            float w11 = 1.0f - w00 - w01 - w10;
 
             cv::Mat next_win = pyr_next(cv::Rect(q.x - half_win_width, q.y - half_win_height, win_size_.width, win_size_.height));
             cv::Mat p_win;
             prev_w.convertTo(p_win, CV_8UC1);
 
             //! get mismatch vector
-            pIpw = prev_w.ptr<float>(0);
+            pTwi = prev_w.ptr<float>(0);
             pGwx = grad_wx.ptr<deriv_type>(0);
             pGwy = grad_wy.ptr<deriv_type>(0);
 
             cv::Point2f b(0,0);
-            win_start = cv::Point2f(q.x - half_win_width, q.y - half_win_height);
-            win_end = cv::Point2f(win_start.x + win_size_.width, win_start.y + win_size_.height);
+            x_start = floor(win_start.x);
+            y_start = floor(win_start.y);
             error = 0;
-            for(int iwy = 0; iwy < win_size_.height; ++iwy)
+            for(int yi = 0; yi < win_size_.height; ++yi)
             {
-                for(int iwx = 0; iwx < win_size_.width; ++iwx, pGwx++, pGwy++, pIpw++)
+                const uint8_t* pIw = &pyr_next.ptr<uint8_t>(yi+y_start)[x_start];
+                for(int xi = 0; xi < win_size_.width; ++xi, pGwx++, pGwy++, pTwi++)
                 {
-                    float Ip = interpolateMat_8u(pyr_next, win_start.x+iwx, win_start.y+iwy);
-                    float diff = (*pIpw) - Ip;
+                    float Ii = w00*pIw[xi] + w01*pIw[xi+pyr_cols] + w10*pIw[xi+1] + w11*pIw[xi+pyr_cols+1];
+                    //Ii = interpolateMat_8u(pyr_next, win_start.x+xi, win_start.y+yi);
+                    float diff = (*pTwi) - Ii;
                     deriv_type dx = (*pGwx);
                     deriv_type dy = (*pGwy);
 
-                    diff_img.at<float>(iwy, iwx) = diff;
+                    diff_img.at<float>(yi, xi) = diff;
 
                     b.x += diff * dx;
                     b.y += diff * dy;
