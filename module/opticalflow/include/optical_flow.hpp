@@ -7,12 +7,19 @@
 #include <opencv2/core/core.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 
-#define deriv_type int16_t
+#define USE_INT
+//#define GET_TIME
+
+#ifdef USE_INT
+    #define deriv_type int32_t
+#else
+    #define deriv_type float
+#endif
 
 namespace vk{
 
 void computePyrLK(const cv::Mat& img_prev, const cv::Mat& img_next, std::vector<cv::Point2f>& pts_prev, std::vector<cv::Point2f>& pts_next,
-        std::vector<float>& errors, const cv::Size& win_size, const int level = 3, const int times = 40, const float eps = 0.001);
+        std::vector<uchar>& statuses, std::vector<float>& errors, const cv::Size& win_size = cv::Size(21,21), const int level = 3, const int times = 40, const float eps = 0.001);
 
 class OpticalFlow
 {
@@ -20,14 +27,20 @@ public:
     OpticalFlow(const cv::Size& win_size, const int level = 3, const int times = 40, const float eps = 0.001);
     ~OpticalFlow();
 
-    void computePyrLK(const cv::Mat& img_prev, const cv::Mat& img_next, const std::vector<cv::Point2f>& pts_prev,
+    int computePyrLK(const cv::Mat& img_prev, const cv::Mat& img_next, const std::vector<cv::Point2f>& pts_prev,
         std::vector<cv::Point2f>& pts_next, std::vector<float>& errors);
 
     void createPyramid(const cv::Mat& img_prev, const cv::Mat& img_next);
 
-    void trackPoint(const cv::Point2f& pt_prev, cv::Point2f& pt_next, const int max_level, float& error, bool& status);
+    void trackPoint(const cv::Point2f& pt_prev, cv::Point2f& pt_next, const int max_level, float& error, uchar& status);
 
     void calcGradient();
+
+#ifdef GET_TIME
+public:
+    float getTimes[5];
+    int32_t nTimes[5];
+#endif
 
 private:
     cv::Size win_size_;
@@ -41,9 +54,6 @@ private:
     std::vector<cv::Mat> pyr_grad_x_, pyr_grad_y_;
 };//! OpticalFlow
 
-
-bool align2D(const cv::Mat& T, const cv::Mat& I, const cv::Mat& GTx, const cv::Mat& GTy,
-    const cv::Size size, const cv::Point2f& p, cv::Point2f& q);
 }//! vk
 
 #endif

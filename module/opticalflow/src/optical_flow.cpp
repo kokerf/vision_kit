@@ -18,7 +18,17 @@ OpticalFlow::OpticalFlow(const cv::Size& win_size, const int level, const int ti
     assert(criteria_ > 0);
     win_eara_ = win_size_.height * win_size_.width;
     EPS_S2_ = criteria_*criteria_;
+
+#ifdef GET_TIME
+    for(int i = 0; i < 5; i++)
+    {
+        getTimes[i] = 0;
+        nTimes[i] = 0;
+    }
+#endif
+
 }
+
 
 OpticalFlow::~OpticalFlow()
 {
@@ -91,18 +101,37 @@ void OpticalFlow::calcGradient()
 
 void OpticalFlow::createPyramid(const cv::Mat& img_prev, const cv::Mat& img_next)
 {
+#ifdef GET_TIME
+    clock_t start_time0 = clock();
+#endif
+
     assert(img_prev.type() == CV_8UC1);
     assert(img_next.type() == CV_8UC1);
 
     //! compute Pyramid images
-    computePyramid(img_prev, pyr_prev_, 2, max_level_);
-    computePyramid(img_next, pyr_next_, 2, max_level_);
+    int max_level0 = computePyramid(img_prev, pyr_prev_, 2, max_level_);
+    int max_level1 = computePyramid(img_next, pyr_next_, 2, max_level_);
+
+    max_level_ = VK_MIN(max_level0, max_level1);
+    pyr_prev_.resize(max_level_+1);
+    pyr_next_.resize(max_level_+1);
+
+#ifdef GET_TIME
+    clock_t start_time1 = clock();
+#endif
 
     //! calculate gradient for each level
     calcGradient();
+
+#ifdef GET_TIME
+    getTimes[0] += (float)(start_time1-start_time0);
+    nTimes[0]++;
+    getTimes[1] += (float)(clock()-start_time0);
+    nTimes[1]++;
+#endif
 }
 
-void OpticalFlow::trackPoint(const cv::Point2f& pt_prev, cv::Point2f& pt_next, const int max_level, float& error, bool& status)
+void OpticalFlow::trackPoint(const cv::Point2f& pt_prev, cv::Point2f& pt_next, const int max_level, float& error, uchar& status)
 {
     const int half_win_height = win_size_.height/2;
     const int half_win_width = win_size_.width/2;
@@ -110,73 +139,83 @@ void OpticalFlow::trackPoint(const cv::Point2f& pt_prev, cv::Point2f& pt_next, c
     cv::Point2f q = pt_prev / (1 << max_level + 1);
     for(int l = max_level; l >= 0; l--)
     {
-        status = true;
+#ifdef GET_TIME
+        clock_t start_time = clock();
+#endif
+        status = 1;
         q *= 2;
+
+        //! get images in l-level
+        const cv::Mat& pyr_prev = pyr_prev_[l];
+        const cv::Mat& pyr_next = pyr_next_[l];
+        const cv::Mat& grad_x = pyr_grad_x_[l];
+        const cv::Mat& grad_y = pyr_grad_y_[l];
+        const int pyr_cols = pyr_prev.cols;
+        const int pyr_rows = pyr_prev.rows;
+
         //! point location in l-lewel
         cv::Point2f p = pt_prev / (1 << l);
         cv::Point2f win_start(p.x - half_win_width, p.y - half_win_height);
         cv::Point2f win_end(win_start.x + win_size_.width, win_start.y + win_size_.height);
 
+        //! check boundary of p's patch
+        if(win_start.x < 0 || win_start.y < 0 || win_end.x > pyr_cols || win_end.y > pyr_rows)
+        {
+            status = 0;
+            continue;
+        }
 
+        //! bilinear interpolation
         int x = floor(p.x);
         int y = floor(p.y);
         float subpix_x = p.x - x;
         float subpix_y = p.y - y;
-        //! cite from OpenCV
-        const int16_t W_BITS = 14;//! for a and b is smaller than 1, int is 16bit
-        //const float FLT_SCALE = 1.f/(1 << 20);
-        int16_t iw00 = roundl((1.f - subpix_x)*(1.f - subpix_y)*(1 << W_BITS));
-        int16_t iw01 = roundl(subpix_x*(1.f - subpix_y)*(1 << W_BITS));
-        int16_t iw10 = roundl((1.f - subpix_x)*subpix_y*(1 << W_BITS));
-        int16_t iw11 = (1 << W_BITS) - iw00 - iw01 - iw10;
-
         float w00 = (1.0f - subpix_x)*(1.0f - subpix_y);
         float w01 = (1.0f - subpix_x)*subpix_y;
         float w10 = subpix_x*(1.0f - subpix_y);
         float w11 = 1.0f - w00 - w01 - w10;
 
-        const cv::Mat &pyr_prev = pyr_prev_[l];
-        const cv::Mat &pyr_next = pyr_next_[l];
-        const cv::Mat& grad_x = pyr_grad_x_[l];
-        const cv::Mat& grad_y = pyr_grad_y_[l];
+#ifdef USE_INT
+        //! cite from OpenCV
+        const int16_t W_BITS = 9;
+        int16_t iw00 = roundl(w00*(1 << W_BITS));
+        int16_t iw01 = roundl(w01*(1 << W_BITS));
+        int16_t iw10 = roundl(w10*(1 << W_BITS));
+        int16_t iw11 = (1 << W_BITS) - iw00 - iw01 - iw10;
+#endif
 
-        const int pyr_cols = pyr_prev.cols;
-        const int pyr_rows = pyr_prev.rows;
-        if(win_start.x < 0 || win_start.y < 0 || win_end.x > pyr_cols || win_end.y > pyr_rows)
-        {
-            status = false;
-            continue;
-        }
-
+        //! create spatial gradient matrix and previous patch of win_size_
         cv::Mat prev_w = cv::Mat::zeros(win_size_, CV_32FC1);
-        cv::Mat grad_wx = cv::Mat::zeros(win_size_, cv::DataType<deriv_type>::type);
-        cv::Mat grad_wy = cv::Mat::zeros(win_size_, cv::DataType<deriv_type>::type);
+        cv::Mat grad_xw = cv::Mat::zeros(win_size_, cv::DataType<deriv_type>::type);
+        cv::Mat grad_yw = cv::Mat::zeros(win_size_, cv::DataType<deriv_type>::type);
         float* pTwi = prev_w.ptr<float>(0);
-        deriv_type* pGwx = grad_wx.ptr<deriv_type>(0);
-        deriv_type* pGwy = grad_wy.ptr<deriv_type>(0);
-        //! get spatial gradient matrix
-        double G00 = 0, G01 = 0, G11 = 0;
+        deriv_type* pGxw = grad_xw.ptr<deriv_type>(0);
+        deriv_type* pGyw = grad_yw.ptr<deriv_type>(0);
+
+        //! get spatial gradient matrix of win_size_
+        float G00 = 0, G01 = 0, G11 = 0;
         int x_start = floor(win_start.x);
         int y_start = floor(win_start.y);
         for(int yi = 0; yi < win_size_.height; ++yi)
         {
-            const uint8_t* pTw = &pyr_prev.ptr<uint8_t>(yi+y_start)[x_start];
+            const uint8_t* pT = &pyr_prev.ptr<uint8_t>(yi+y_start)[x_start];
             const deriv_type* pGx = &grad_x.ptr<deriv_type>(yi+y_start)[x_start];
             const deriv_type* pGy = &grad_y.ptr<deriv_type>(yi+y_start)[x_start];
 
-            for(int xi = 0; xi < win_size_.width; ++xi, pGwx++, pGwy++, pTwi++)
+            for(int xi = 0; xi < win_size_.width; ++xi, pGxw++, pGyw++, pTwi++)
             {
-                float Ti = (w00*pTw[xi] + w01*pTw[xi+pyr_cols] + w10*pTw[xi+1] + w11*pTw[xi+pyr_cols+1]);
-                deriv_type dx = VK_DESCALE(iw00*pGx[xi] + iw01*pGx[xi+pyr_cols] + iw10*pGx[xi+1] + iw11*pGx[xi+pyr_cols+1], W_BITS);
-                deriv_type dy = VK_DESCALE(iw00*pGy[xi] + iw01*pGy[xi+pyr_cols] + iw10*pGy[xi+1] + iw11*pGy[xi+pyr_cols+1], W_BITS);
-                //float Ti = interpolateMat_8u(pyr_prev, win_start.x+xi, win_start.y+yi);
-                //float dx = interpolateMat_32f(grad_x, win_start.x +xi, win_start.y +yi);
-                //float dy = interpolateMat_32f(grad_y, win_start.x +xi, win_start.y +yi);
-
+                float Ti = (w00*pT[xi] + w01*pT[xi+pyr_cols] + w10*pT[xi+1] + w11*pT[xi+pyr_cols+1]);
+#ifdef USE_INT
+                deriv_type dx = iw00*pGx[xi] + iw01*pGx[xi+pyr_cols] + iw10*pGx[xi+1] + iw11*pGx[xi+pyr_cols+1];
+                deriv_type dy = iw00*pGy[xi] + iw01*pGy[xi+pyr_cols] + iw10*pGy[xi+1] + iw11*pGy[xi+pyr_cols+1];
+#else
+                deriv_type dx = w00*pGx[xi] + w01*pGx[xi+pyr_cols] + w10*pGx[xi+1] + w11*pGx[xi+pyr_cols+1];
+                deriv_type dy = w00*pGy[xi] + w01*pGy[xi+pyr_cols] + w10*pGy[xi+1] + w11*pGy[xi+pyr_cols+1];
+#endif
                 //! store in Mats of win_size_
                 (*pTwi) = Ti;
-                (*pGwx) = dx;
-                (*pGwy) = dy;
+                (*pGxw) = dx;
+                (*pGyw) = dy;
 
                 //! gradient matrix(Hession)
                 G00 += dx*dx;
@@ -185,29 +224,37 @@ void OpticalFlow::trackPoint(const cv::Point2f& pt_prev, cv::Point2f& pt_next, c
             }
         }
 
-        double det = G00*G11 - G01*G01;
+        float det = G00*G11 - G01*G01;
         if(abs(det) < VK_EPS)
         {
-            status = false;
+            status = 0;
             std::cerr << " The gradient matrix is irreversible !!!" << std::endl;
             break;
         }
 
+#ifdef GET_TIME
+        getTimes[2] += (float)(clock()-start_time);
+        nTimes[2]++;
+#endif
         //! iteration
         cv::Point2f delta;
-        cv::Point2f v(0, 0);
         int it = 0;
-        cv::Mat diff_img = cv::Mat::zeros(win_size_, CV_32FC1);
         while(it++ < max_iters_)
         {
+
+#ifdef GET_TIME
+        start_time = clock();
+#endif
             win_start = cv::Point2f(q.x - half_win_width, q.y - half_win_height);
             win_end = cv::Point2f(win_start.x + win_size_.width, win_start.y + win_size_.height);
+            //! check boundary of q's patch
             if(win_start.x < 0 || win_start.y < 0 || win_end.x > pyr_cols || win_end.y > pyr_rows)
             {
-                if(l == 0) {status = false;}
+                if(l == 0) {status = 0;}
                 break;
             }
 
+            //! bilinear interpolation
             int x = floor(q.x);
             int y = floor(q.y);
             float subpix_x = q.x - x;
@@ -218,14 +265,10 @@ void OpticalFlow::trackPoint(const cv::Point2f& pt_prev, cv::Point2f& pt_next, c
             float w10 = subpix_x*(1.0f - subpix_y);
             float w11 = 1.0f - w00 - w01 - w10;
 
-            cv::Mat next_win = pyr_next(cv::Rect(q.x - half_win_width, q.y - half_win_height, win_size_.width, win_size_.height));
-            cv::Mat p_win;
-            prev_w.convertTo(p_win, CV_8UC1);
-
             //! get mismatch vector
             pTwi = prev_w.ptr<float>(0);
-            pGwx = grad_wx.ptr<deriv_type>(0);
-            pGwy = grad_wy.ptr<deriv_type>(0);
+            pGxw = grad_xw.ptr<deriv_type>(0);
+            pGyw = grad_yw.ptr<deriv_type>(0);
 
             cv::Point2f b(0,0);
             x_start = floor(win_start.x);
@@ -234,15 +277,12 @@ void OpticalFlow::trackPoint(const cv::Point2f& pt_prev, cv::Point2f& pt_next, c
             for(int yi = 0; yi < win_size_.height; ++yi)
             {
                 const uint8_t* pIw = &pyr_next.ptr<uint8_t>(yi+y_start)[x_start];
-                for(int xi = 0; xi < win_size_.width; ++xi, pGwx++, pGwy++, pTwi++)
+                for(int xi = 0; xi < win_size_.width; ++xi, pGxw++, pGyw++, pTwi++)
                 {
                     float Ii = w00*pIw[xi] + w01*pIw[xi+pyr_cols] + w10*pIw[xi+1] + w11*pIw[xi+pyr_cols+1];
-                    //Ii = interpolateMat_8u(pyr_next, win_start.x+xi, win_start.y+yi);
                     float diff = (*pTwi) - Ii;
-                    deriv_type dx = (*pGwx);
-                    deriv_type dy = (*pGwy);
-
-                    diff_img.at<float>(yi, xi) = diff;
+                    deriv_type dx = (*pGxw);
+                    deriv_type dy = (*pGyw);
 
                     b.x += diff * dx;
                     b.y += diff * dy;
@@ -252,148 +292,93 @@ void OpticalFlow::trackPoint(const cv::Point2f& pt_prev, cv::Point2f& pt_next, c
             }
             error /= win_eara_;
 
+#ifdef USE_INT
+            delta.x = W_BITS*(G11 * b.x - G01 * b.y)/det;
+            delta.y = W_BITS*(-G01 * b.x + G00 * b.y)/det;
+#else
             delta.x = (G11 * b.x - G01 * b.y)/det;
             delta.y = (-G01 * b.x + G00 * b.y)/det;
+#endif
 
+            //! if not in 0-level, 0.01 is small enough
+            if(l>0 && abs(delta.x) < 0.01 && abs(delta.y) < 0.01)
+            {
+                break;
+            }
             //! iteration termination
             if(delta.x*delta.x + delta.y*delta.y < EPS_S2_)
             {
                 break;
             }
 
-            if(abs(delta.x) < 0.001 && abs(delta.y) < 0.001)
-            {
-                break;
-            }
-
+            //! update p
             q += delta;
-        }//! iteration
-        //! update
+
+#ifdef GET_TIME
+            getTimes[3] += (float)(clock()-start_time);
+            nTimes[3]++;
+#endif
+        }//! end of iteration
+
         pt_next = p;
-    }//! levels
+
+    }//! end of levels
 }
 
 void computePyrLK(const cv::Mat& img_prev, const cv::Mat& img_next, std::vector<cv::Point2f>& points_prev, std::vector<cv::Point2f>& points_next,
-    std::vector<float>& errors, const cv::Size& win_size, const int level, const int times, const float eps)
+    std::vector<uchar>& statuses, std::vector<float>& errors, const cv::Size& win_size, const int level, const int times, const float eps)
 {
+#ifdef GET_TIME
+    clock_t start_time = clock();
+#endif
+
+    const int total_points = points_prev.size();
+    if(total_points < 1)
+        return;
+
     OpticalFlow optical_flow(win_size, level, times, eps);
-    clock_t t0 = clock();
+
     optical_flow.createPyramid(img_prev, img_next);
-    clock_t t1 = clock();
+
     //! each points in img_prev to find a corresponding location in img_next
-    points_next.resize(points_prev.size());
-    errors.resize(points_prev.size(), -1);
-    for(std::vector<cv::Point2f>::iterator ipt = points_prev.begin(); ipt != points_prev.end(); ++ipt)
+    points_next.resize(total_points);
+    statuses.resize(total_points, false);
+    errors.resize(total_points, -1);
+    for(int i = 0; i < total_points; ++i)
     {
         cv::Point2f pt_next;
-        float error = 0;
-        bool status = false;
-        optical_flow.trackPoint(*ipt, pt_next, level, error, status);
+        float& error = errors[i];
+        uchar status = false;
+        optical_flow.trackPoint(points_prev[i], pt_next, level, error, status);
 
-        if(status)
+        statuses[i] = status;
+        if(status==1)
         {
-            points_next[ipt - points_prev.begin()] = pt_next;
-            errors[ipt - points_prev.begin()] = error;
+            points_next[i] = pt_next;
         }
         else
         {
-            points_next[ipt - points_prev.begin()] = cv::Point2f();
-            errors[ipt - points_prev.begin()] = -1;
+            points_next[i] = cv::Point2f();
         }
 
     }//! iterator of points
-    clock_t t2 = clock();
-    std::cout << "time: " << (float)(t1-t0)/CLOCKS_PER_SEC
-     <<" " << (float)(t2-t1)/CLOCKS_PER_SEC <<std::endl;
 
-}
+#ifdef GET_TIME
+    optical_flow.getTimes[4] += (double)(clock()-start_time);
+    optical_flow.nTimes[4]++;
+    std::cout << "================="
+    << "\n Total time: "     << optical_flow.getTimes[4]/optical_flow.nTimes[4]/CLOCKS_PER_SEC
+    << "\n create Pyramid: " << optical_flow.getTimes[0]/CLOCKS_PER_SEC
+                      << " " << optical_flow.getTimes[0]/optical_flow.nTimes[0]/CLOCKS_PER_SEC
+    << "\n calc  gradient: " << optical_flow.getTimes[1]/CLOCKS_PER_SEC
+                      << " " << optical_flow.getTimes[1]/optical_flow.nTimes[1]/CLOCKS_PER_SEC
+    << "\n prev   precess: " << optical_flow.getTimes[2]/CLOCKS_PER_SEC
+                             << " " << optical_flow.getTimes[2]/optical_flow.nTimes[2]/CLOCKS_PER_SEC
+    << "\n      iteration: " << optical_flow.getTimes[3]/CLOCKS_PER_SEC
+                             << " " << optical_flow.getTimes[3]/optical_flow.nTimes[3]/CLOCKS_PER_SEC
+    << "\n=================" << std::endl;
+#endif
 
-bool align2D(const cv::Mat& T, const cv::Mat& I, const cv::Mat& GTx, const cv::Mat& GTy,
-    const cv::Size size, const cv::Point2f& p, cv::Point2f& q)
-{
-    const float EPS = 1E-5f; // Threshold value for termination criteria.
-    const int MAX_ITER = 100;  // Maximum iteration count.
-
-    const int cols = size.width;
-    const int rows = size.height;
-
-    cv::Point2f start, end;
-    start.x = p.x - floor(cols/2);
-    start.y = p.y - floor(rows/2);
-    end.x = start.x + cols;
-    end.y = start.y + cols;
-
-    if(start.x < 0 || start.x > T.cols || end.y < 0 || end.y > T.rows)
-        return false;
-
-    q = p;// -cv::Point2f(4, 4);
-
-    cv::Mat dxy;
-    cv::Mat warpT = cv::Mat::zeros(cols, rows, CV_32FC1);
-    cv::Mat warpGx = cv::Mat::zeros(cols, rows, CV_32FC1);
-    cv::Mat warpGy = cv::Mat::zeros(cols, rows, CV_32FC1);
-    cv::Mat H = cv::Mat::zeros(2,2,CV_32FC1);
-    for(int y = 0; y < rows; ++y)
-    {
-        float* pw = warpT.ptr<float>(y);
-        float* px = warpGx.ptr<float>(y);
-        float* py = warpGy.ptr<float>(y);
-        for(int x = 0; x < cols; ++x, pw++, px++, py++)
-        {
-            (*pw) = (float)interpolateMat_8u(T, start.x+x, start.y+y);
-            (*px) = interpolateMat_32f(GTx, start.x+x, start.y+y);
-            (*py) = interpolateMat_32f(GTy, start.x+x, start.y+y);
-
-            dxy = (cv::Mat_<float>(1, 2) << (*px), (*py));
-            H += dxy.t() * dxy;
-        }
-    }
-    cv::Mat invH = H.inv();
-
-    int iter = 0;
-    cv::Mat warpI = cv::Mat(rows, cols, CV_32FC1);
-    cv::Mat next_win;
-    cv::Mat prev_win;
-    cv::Mat error;
-    while(iter++ < MAX_ITER)
-    {
-        cv::Mat Jres = cv::Mat::zeros(2, 1, CV_32FC1);
-        cv::Mat dq = cv::Mat::zeros(2, 1, CV_32FC1);
-        cv::Point2f qstart(q.x-floor(cols/2), q.y-floor(rows/2));
-        if(qstart.x < 0 || qstart.y < 0 || qstart.x+ cols > I.cols || qstart.y+rows > I.rows)
-            break;
-
-
-        float mean_error=0;
-        for(int y = 0; y < rows; ++y)
-        {
-            float* pw = warpT.ptr<float>(y);
-            float* px = warpGx.ptr<float>(y);
-            float* py = warpGy.ptr<float>(y);
-            for(int x = 0; x < cols; ++x, pw++, px++, py++)
-            {
-
-                float qw = interpolateMat_8u(I, qstart.x+x, qstart.y+y);
-                float diff = *pw - qw;
-                mean_error += diff*diff;
-
-                warpI.at<float>(y, x) = qw;
-                dxy = (cv::Mat_<float>(1, 2) << (*px), (*py));
-                Jres += diff* dxy.t();
-            }
-        }
-        mean_error /= rows*cols;
-        dq = invH * Jres;
-        q.x += dq.at<float>(0, 0);
-        q.y += dq.at<float>(1, 0);
-
-        warpT.convertTo(prev_win, CV_8UC1);
-        warpI.convertTo(next_win, CV_8UC1);
-        cv::Mat error = cv::Mat(next_win.size(), CV_8SC1);
-        error = prev_win - next_win;// next_win - prev_win;
-    }
-
-    return true;
 }
 
 }//! vk

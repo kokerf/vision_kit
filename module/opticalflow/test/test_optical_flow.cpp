@@ -18,26 +18,28 @@ int main(int argc, char const *argv[])
     //! Load image
     Mat image0 = cv::imread(argv[1]);
     Mat image1 = cv::imread(argv[2]);
-    if(image0.empty())
+    if(image0.empty() || image1.empty())
     {
-        cout << "Can not open image1: " << argv[1] << endl;
-        return -1;
-    }
-    if(image1.empty())
-    {
-        cout << "Can not open image2: " << argv[2] << endl;
+        cout << "Can not open image: " << argv[1] <<" " << argv[2] << endl;
         return -1;
     }
 
+    //! convert to gray
     Mat gray0, gray1;
     cvtColor(image0, gray0, COLOR_BGR2GRAY);
     cvtColor(image1, gray1, COLOR_BGR2GRAY);
 
+    //! get corners in first image
     vector<KeyPoint> keypoints;
     Ptr<ORB> detector = ORB::create(100);
     detector->detect(gray0, keypoints, Mat());
 
-    vector<cv::Point2f> points_prev;
+    vector<KeyPoint> keypoints0, keypoints1, keypoints2, keypoints3;
+    vector<DMatch> matches;
+    vector<cv::Point2f> points_prev, points_next0, points_next1;
+    vector<float> errors0, errors1;
+    vector<unsigned char> status0, status1;
+
     if(!keypoints.empty())
     {
         for(vector<KeyPoint>::iterator it = keypoints.begin(); it != keypoints.end(); ++it)
@@ -46,51 +48,39 @@ int main(int argc, char const *argv[])
         }
     }
 
-    vector<cv::Point2f> points_next;
-    vector<float> errors;
-
+    //! ===========================
+    //!  vk::computePyrLK
+    //! ===========================
     clock_t start_time = clock();
-    vk::computePyrLK(gray0, gray1, points_prev, points_next, errors, cv::Size(21, 21), 3, 40, 0.001);
+    vk::computePyrLK(gray0, gray1, points_prev, points_next0, status0, errors0, cv::Size(21, 21), 3, 40, 0.001);
     clock_t end_time = clock();
     cout << "vk::computePyrLK: " << (float)(end_time - start_time) / CLOCKS_PER_SEC <<endl;
 
-    vector<KeyPoint> keypoints0, keypoints1;
-    vector<DMatch> matches;
-    if (!points_prev.empty())
+    for(int i = 0; i < points_prev.size(); i++)
     {
-       for(int i = 0; i < points_prev.size();i++)
-       {
-           if(errors[i] == -1)
-               continue;
+       if(!status0[i])
+           continue;
+       if(points_next0[i].x < 0 || points_next0[i].x > image0.cols || points_next0[i].y < 0 || points_next0[i].y > image0.rows)
+           continue;
 
-           int new_i = static_cast<int>(matches.size());
-           cv::KeyPoint kp0, kp1;
-           kp0.pt = points_prev[i];
-           kp1.pt = points_next[i];
-           keypoints0.push_back(kp0);
-           keypoints1.push_back(kp1);
-           matches.push_back(DMatch(new_i, new_i, 0));
-       }
+       int new_i = static_cast<int>(matches.size());
+       cv::KeyPoint kp0, kp1;
+       kp0.pt = points_prev[i];
+       kp1.pt = points_next0[i];
+       keypoints0.push_back(kp0);
+       keypoints1.push_back(kp1);
+       matches.push_back(DMatch(new_i, new_i, 0));
     }
     cout << "Total tracking points:" << matches.size() << endl;
 
-    Mat keypoint_image, match_image;
-    drawKeypoints(image0, keypoints, keypoint_image);
-    cv::drawMatches(keypoint_image, keypoints0, image0, keypoints1, matches, match_image, cv::Scalar(255, 0, 0), cv::Scalar(200, 0, 10));
-    cv::imshow("match", match_image);
-    imshow("image", image0);
-    //waitKey(0);
-
-
-    std::vector<unsigned char> status;
-    std::vector<float> error;
-    std::vector<cv::Point2f>  currPts_temp;
-    //! tracking by LK opticalflow
+    //! ============================
+    //!  cv::calcOpticalFlowPyrLK
+    //! ============================
     start_time = clock();
     cv::calcOpticalFlowPyrLK(
         image0, image1,
-        points_prev, currPts_temp,
-        status, error,
+        points_prev, points_next1,
+        status1, errors1,
         cv::Size(21, 21), 3,
         cv::TermCriteria(cv::TermCriteria::COUNT + cv::TermCriteria::EPS, 40, 0.001)
         );
@@ -98,40 +88,54 @@ int main(int argc, char const *argv[])
     cout << "cv::calcOpticalFlowPyrLK: " << (float)(end_time - start_time) / CLOCKS_PER_SEC <<endl;
 
     //! check status and get good matchs
-    vector<KeyPoint> keypoints2, keypoints3;
     matches.clear();
-    int status_num = status.size();
-    for (int i = 0; i < status_num; i++)
+    for(int i = 0; i < points_prev.size(); i++)
     {
-        if (status[i] == 1)
-        {
-            if (currPts_temp[i].x < 0 || currPts_temp[i].x > image0.cols || currPts_temp[i].y < 0 || currPts_temp[i].y > image0.rows)
-                continue;
+        if(!status1[i])
+            continue;
+        if(points_next1[i].x < 0 || points_next1[i].x > image0.cols || points_next1[i].y < 0 || points_next1[i].y > image0.rows)
+            continue;
 
-            int new_i = static_cast<int>(matches.size());
-            cv::KeyPoint kp0,kp1;
-            kp0.pt = points_prev[i];
-            kp1.pt = currPts_temp[i];
-            keypoints2.push_back(kp0);
-            keypoints3.push_back(kp1);
-            matches.push_back(DMatch(new_i, new_i, 0));
-        }
+        int new_i = static_cast<int>(matches.size());
+        cv::KeyPoint kp0,kp1;
+        kp0.pt = points_prev[i];
+        kp1.pt = points_next1[i];
+        keypoints2.push_back(kp0);
+        keypoints3.push_back(kp1);
+        matches.push_back(DMatch(new_i, new_i, 0));
     }
+    cout << "Total tracking points:" << matches.size() << endl;
 
-
+    //! calculate difference
     vector<pair<float,float>> diff;
+    float diff_x = 0;
+    float diff_y = 0;
+    int diff_n = 0;
     for (int i = 0; i < points_prev.size(); i++)
     {
-        float dx = points_next[i].x - currPts_temp[i].x;
-        float dy = points_next[i].y - currPts_temp[i].y;
+        if(status0[i] != 1 && status1[i] != 1)
+        {
+            diff.push_back(make_pair(0,0));
+            continue;
+        }
+
+        float dx = points_next0[i].x - points_next1[i].x;
+        float dy = points_next0[i].y - points_next1[i].y;
+        diff_x += abs(dx);
+        diff_y += abs(dy);
+        diff_n++;
         diff.push_back(make_pair(dx,dy));
     }
+    diff_x /= diff_n;
+    diff_y /= diff_n;
+    cout << "avrage difference in x and y:" << diff_x << " " << diff_y << endl;
 
-
-
-    cout << "Total tracking points:" << matches.size() << endl;
-    Mat match_image1;
+    //! draw images
+    Mat keypoint_image, match_image0, match_image1;
+    drawKeypoints(image0, keypoints, keypoint_image);
+    cv::drawMatches(keypoint_image, keypoints0, image0, keypoints1, matches, match_image0, cv::Scalar(255, 0, 0), cv::Scalar(200, 0, 10));
     cv::drawMatches(keypoint_image, keypoints2, image0, keypoints3, matches, match_image1, cv::Scalar(255, 0, 0), cv::Scalar(255, 0, 0));
-    cv::imshow("match_opencv", match_image1);
+    cv::imshow("vk", match_image0);
+    cv::imshow("cv", match_image1);
     waitKey(0);
 }
