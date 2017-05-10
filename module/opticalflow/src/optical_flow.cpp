@@ -49,7 +49,7 @@ void OpticalFlow::calcGradient()
     pyr_grad_x_.resize(n_levels), pyr_grad_y_.resize(n_levels);
     for(int i = 0; i < n_levels; ++i)
     {
-        cv::Mat& src = pyr_next_[i];
+        cv::Mat& src = pyr_prev_[i];
         cv::Mat& grad_x = pyr_grad_x_[i];
         cv::Mat& grad_y = pyr_grad_y_[i];
         //! copy borders for image
@@ -91,9 +91,10 @@ void OpticalFlow::calcGradient()
                             + Sharr_dy[6] * extd_ptr[u - 1 + src_cols]
                             + Sharr_dy[7] * extd_ptr[u + src_cols]
                             + Sharr_dy[8] * extd_ptr[u + 1 + src_cols];
-
+#ifndef USE_INT
                 gx_ptr[ic] /= 32;
                 gy_ptr[ic] /= 32;
+#endif
             }
         }
     }
@@ -161,7 +162,10 @@ void OpticalFlow::trackPoint(const cv::Point2f& pt_prev, cv::Point2f& pt_next, c
         //! check boundary of p's patch
         if(win_start.x < 0 || win_start.y < 0 || win_end.x > pyr_cols || win_end.y > pyr_rows)
         {
-            status = 0;
+            if (l == 0)
+            {
+                status = 0;
+            }
             continue;
         }
 
@@ -177,7 +181,8 @@ void OpticalFlow::trackPoint(const cv::Point2f& pt_prev, cv::Point2f& pt_next, c
 
 #ifdef USE_INT
         //! cite from OpenCV
-        const int16_t W_BITS = 9;
+        const int16_t W_BITS = 5;
+        const float FLT_SCALE = (1 << (W_BITS + 5));
         int16_t iw00 = roundl(w00*(1 << W_BITS));
         int16_t iw01 = roundl(w01*(1 << W_BITS));
         int16_t iw10 = roundl(w10*(1 << W_BITS));
@@ -218,9 +223,9 @@ void OpticalFlow::trackPoint(const cv::Point2f& pt_prev, cv::Point2f& pt_next, c
                 (*pGyw) = dy;
 
                 //! gradient matrix(Hession)
-                G00 += dx*dx;
-                G01 += dx*dy;
-                G11 += dy*dy;
+                G00 += 1.0*dx*dx;
+                G01 += 1.0*dx*dy;
+                G11 += 1.0*dy*dy;
             }
         }
 
@@ -250,7 +255,10 @@ void OpticalFlow::trackPoint(const cv::Point2f& pt_prev, cv::Point2f& pt_next, c
             //! check boundary of q's patch
             if(win_start.x < 0 || win_start.y < 0 || win_end.x > pyr_cols || win_end.y > pyr_rows)
             {
-                if(l == 0) {status = 0;}
+                if(l == 0)
+                {
+                    status = 0;
+                }
                 break;
             }
 
@@ -287,14 +295,14 @@ void OpticalFlow::trackPoint(const cv::Point2f& pt_prev, cv::Point2f& pt_next, c
                     b.x += diff * dx;
                     b.y += diff * dy;
 
-                    error += diff*diff;
+                    error += abs(diff);
                 }
             }
             error /= win_eara_;
 
 #ifdef USE_INT
-            delta.x = W_BITS*(G11 * b.x - G01 * b.y)/det;
-            delta.y = W_BITS*(-G01 * b.x + G00 * b.y)/det;
+            delta.x = FLT_SCALE*(G11 * b.x - G01 * b.y)/det;
+            delta.y = FLT_SCALE*(-G01 * b.x + G00 * b.y)/det;
 #else
             delta.x = (G11 * b.x - G01 * b.y)/det;
             delta.y = (-G01 * b.x + G00 * b.y)/det;
@@ -320,7 +328,7 @@ void OpticalFlow::trackPoint(const cv::Point2f& pt_prev, cv::Point2f& pt_next, c
 #endif
         }//! end of iteration
 
-        pt_next = p;
+        pt_next = q;
 
     }//! end of levels
 }

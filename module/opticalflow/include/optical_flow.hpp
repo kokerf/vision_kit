@@ -8,12 +8,12 @@
 #include <opencv2/imgproc/imgproc.hpp>
 
 #define USE_INT
-//#define GET_TIME
+#define GET_TIME
 
 #ifdef USE_INT
     #define deriv_type int32_t
 #else
-    #define deriv_type float
+    #define deriv_type double
 #endif
 
 namespace vk{

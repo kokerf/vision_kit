@@ -78,7 +78,7 @@ int main(int argc, char const *argv[])
     //! ============================
     start_time = clock();
     cv::calcOpticalFlowPyrLK(
-        image0, image1,
+        gray0, gray1,
         points_prev, points_next1,
         status1, errors1,
         cv::Size(21, 21), 3,
