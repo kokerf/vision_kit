@@ -36,7 +36,7 @@ int main(int argc, char const *argv[])
          << "=================================" << endl;
 
     vector<Mat> images;
-    vk::computePyramid(origin, images, scale, level);
+    level = vk::computePyramid(origin, images, scale, level);
     uint16_t  height = images[0].rows;
     uint16_t  width = 0;
     for(uint16_t i = 0; i < level+1; i++)
@@ -63,13 +63,13 @@ int main(int argc, char const *argv[])
         << "=================================" << endl
         << "--- Testing  convolution          " << endl
         << "=================================" << endl;
-    cv::Mat kernel1 = (Mat_<float>(3,3)<< -1, 0, 1, -2, 0, 2, -1, 0, 1); kernel1/=8;
-    cv::Mat kernel2 = (Mat_<float>(3,3)<< -1,-2,-1, 0, 0, 0, 1, 2, 1); kernel2/=8;
-    cv::Mat kernel3 = (Mat_<float>(3,3)<< 1, 1, 1, 1, 1, 1, 1, 1, 1); kernel3/=9*256;
+    cv::Mat kernel1 = (Mat_<float>(3, 3) << -1, 0, 1, -2, 0, 2, -1, 0, 1);
+    cv::Mat kernel2 = (Mat_<float>(3,3)<< -1,-2,-1, 0, 0, 0, 1, 2, 1);
+    cv::Mat kernel3 = (Mat_<float>(3,3)<< 1, 1, 1, 1, 1, 1, 1, 1, 1);
     cv::Mat convolution1, convolution2, convolution3;
-    vk::conv(gray, convolution1, kernel1);
-    vk::conv(gray, convolution2, kernel2);
-    vk::conv(gray, convolution3, kernel3);
+    vk::conv_32f(gray, convolution1, kernel1, 8);
+    vk::conv_32f(gray, convolution2, kernel2, 8);
+    vk::conv_32f(gray, convolution3, kernel3, 9*256);
     cv::Mat convolution = cv::Mat(cv::Size(gray.cols*3, gray.rows), CV_32FC1);
     convolution1.copyTo(convolution.colRange(0, gray.cols));
     convolution2.copyTo(convolution.colRange(gray.cols, gray.cols*2));

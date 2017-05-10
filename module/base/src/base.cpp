@@ -9,7 +9,7 @@
 
 namespace vk {
 
-bool computePyramid(const cv::Mat& image, std::vector<cv::Mat>& image_pyramid, const float scale_factor, const uint16_t level)
+int computePyramid(const cv::Mat& image, std::vector<cv::Mat>& image_pyramid, const float scale_factor, const uint16_t level, const cv::Size min_size)
 {
     assert(scale_factor > 1.0);
     assert(!image.empty());
@@ -21,9 +21,14 @@ bool computePyramid(const cv::Mat& image, std::vector<cv::Mat>& image_pyramid, c
     {
         cv::Size size(round(image_pyramid[i - 1].cols / scale_factor), round(image_pyramid[i - 1].rows / scale_factor));
 
+        if(size.height < min_size.height || size.width < min_size.width)
+        {
+            return level-1;
+        }
+
         cv::resize(image_pyramid[i - 1], image_pyramid[i], size, 0, 0, cv::INTER_LINEAR);
     }
-    return true;
+    return level;
 }
 
 void conv_32f(const cv::Mat& src, cv::Mat& dest, const cv::Mat& kernel, const int div)
@@ -137,6 +142,90 @@ void makeBorders(const cv::Mat& src, cv::Mat& dest, const int col_side, const in
     dest = border.clone();
 }
 
+bool align2D(const cv::Mat& T, const cv::Mat& I, const cv::Mat& GTx, const cv::Mat& GTy,
+    const cv::Size size, const cv::Point2f& p, cv::Point2f& q, const float EPS, const int MAX_ITER)
+{
+    const int cols = size.width;
+    const int rows = size.height;
+
+    cv::Point2f start, end;
+    start.x = p.x - floor(cols/2);
+    start.y = p.y - floor(rows/2);
+    end.x = start.x + cols;
+    end.y = start.y + cols;
+
+    if(start.x < 0 || start.x > T.cols || end.y < 0 || end.y > T.rows)
+        return false;
+
+    q = p;// -cv::Point2f(4, 4);
+
+    cv::Mat dxy;
+    cv::Mat warpT = cv::Mat::zeros(cols, rows, CV_32FC1);
+    cv::Mat warpGx = cv::Mat::zeros(cols, rows, CV_32FC1);
+    cv::Mat warpGy = cv::Mat::zeros(cols, rows, CV_32FC1);
+    cv::Mat H = cv::Mat::zeros(2,2,CV_32FC1);
+    for(int y = 0; y < rows; ++y)
+    {
+        float* pw = warpT.ptr<float>(y);
+        float* px = warpGx.ptr<float>(y);
+        float* py = warpGy.ptr<float>(y);
+        for(int x = 0; x < cols; ++x, pw++, px++, py++)
+        {
+            (*pw) = (float)interpolateMat_8u(T, start.x+x, start.y+y);
+            (*px) = interpolateMat_32f(GTx, start.x+x, start.y+y);
+            (*py) = interpolateMat_32f(GTy, start.x+x, start.y+y);
+
+            dxy = (cv::Mat_<float>(1, 2) << (*px), (*py));
+            H += dxy.t() * dxy;
+        }
+    }
+    cv::Mat invH = H.inv();
+
+    int iter = 0;
+    cv::Mat warpI = cv::Mat(rows, cols, CV_32FC1);
+    cv::Mat next_win;
+    cv::Mat prev_win;
+    cv::Mat error;
+    while(iter++ < MAX_ITER)
+    {
+        cv::Mat Jres = cv::Mat::zeros(2, 1, CV_32FC1);
+        cv::Mat dq = cv::Mat::zeros(2, 1, CV_32FC1);
+        cv::Point2f qstart(q.x-floor(cols/2), q.y-floor(rows/2));
+        if(qstart.x < 0 || qstart.y < 0 || qstart.x+ cols > I.cols || qstart.y+rows > I.rows)
+            return false;
+
+        float mean_error=0;
+        for(int y = 0; y < rows; ++y)
+        {
+            float* pw = warpT.ptr<float>(y);
+            float* px = warpGx.ptr<float>(y);
+            float* py = warpGy.ptr<float>(y);
+            for(int x = 0; x < cols; ++x, pw++, px++, py++)
+            {
+
+                float qw = interpolateMat_8u(I, qstart.x+x, qstart.y+y);
+                float diff = *pw - qw;
+                mean_error += diff*diff;
+
+                warpI.at<float>(y, x) = qw;
+                dxy = (cv::Mat_<float>(1, 2) << (*px), (*py));
+                Jres += diff* dxy.t();
+            }
+        }
+        mean_error /= rows*cols;
+        dq = invH * Jres;
+        q.x += dq.at<float>(0, 0);
+        q.y += dq.at<float>(1, 0);
+
+        warpT.convertTo(prev_win, CV_8UC1);
+        warpI.convertTo(next_win, CV_8UC1);
+        cv::Mat error = cv::Mat(next_win.size(), CV_8SC1);
+        error = prev_win - next_win;// next_win - prev_win;
+    }
+
+    return true;
+}
+
 //! https://github.com/uzh-rpg/rpg_vikit/blob/master/vikit_common/include/vikit/vision.h
 //! WARNING This function does not check whether the x/y is within the border
 float interpolateMat_32f(const cv::Mat& mat, float u, float v)
@@ -158,27 +247,6 @@ float interpolateMat_32f(const cv::Mat& mat, float u, float v)
     return (wx0*wy0)*val00 + (wx1*wy0)*val10 + (wx0*wy1)*val01 + (wx1*wy1)*val11;
 }
 
-int16_t interpolateMat_16s(const cv::Mat& mat, float u, float v)
-{
-    assert(mat.type() == CV_16SC1);
-    int16_t x = floor(u);
-    int16_t y = floor(v);
-    float a = u - x;
-    float b = v - y;
-    const int16_t W_BITS = 14;//! for a and b is smaller than 1, int is 16bit
-    int16_t w00 = roundl((1.f - a)*(1.f - b)*(1 << W_BITS));
-    int16_t w01 = roundl(a*(1.f - b)*(1 << W_BITS));
-    int16_t w10 = roundl((1.f - a)*b*(1 << W_BITS));
-    int16_t w11 = (1 << W_BITS) -w00 - w01 - w10;
-
-    int16_t val00 = mat.at<int16_t>(y, x);
-    int16_t val10 = mat.at<int16_t>(y, x + 1);
-    int16_t val01 = mat.at<int16_t>(y + 1, x);
-    int16_t val11 = mat.at<int16_t>(y + 1, x + 1);
-
-    return VK_DESCALE(w00*val00 + w01*val10 + w10*val01 + w11*val11, W_BITS);
-}
-
 float interpolateMat_8u(const cv::Mat& mat, float u, float v)
 {
     assert(mat.type() == CV_8UC1);
@@ -197,25 +265,5 @@ float interpolateMat_8u(const cv::Mat& mat, float u, float v)
     unsigned char* ptr = mat.data + y*stride + x;
     return w00*ptr[0] + w01*ptr[stride] + w10*ptr[1] + w11*ptr[stride + 1];
 }
-// float interpolateMat_8u(const cv::Mat& mat, float u, float v)
-// {
-//     assert(mat.type() == CV_8UC1);
-//     int16_t x = floor(u);
-//     int16_t y = floor(v);
-//     float a = u - x;
-//     float b = v - y;
-//     const int16_t W_BITS = 14;//! for a and b is smaller than 1, int is 16bit
-//     int16_t w00 = roundl((1.f - a)*(1.f - b)*(1 << W_BITS));
-//     int16_t w01 = roundl(a*(1.f - b)*(1 << W_BITS));
-//     int16_t w10 = roundl((1.f - a)*b*(1 << W_BITS));
-//     int16_t w11 = (1 << W_BITS) -w00 - w01 - w10;
-
-//     uint8_t val00 = mat.at<uint8_t>(y, x);
-//     uint8_t val10 = mat.at<uint8_t>(y, x + 1);
-//     uint8_t val01 = mat.at<uint8_t>(y + 1, x);
-//     uint8_t val11 = mat.at<uint8_t>(y + 1, x + 1);
-
-//     return (w00*val00 + w01*val10 + w10*val01 + w11*val11)* 1.0/(1 << 14);
-// }
 
 }//! vk
