@@ -29,7 +29,6 @@ OpticalFlow::OpticalFlow(const cv::Size& win_size, const int level, const int ti
 
 }
 
-
 OpticalFlow::~OpticalFlow()
 {
     pyr_prev_.clear();
@@ -92,8 +91,8 @@ void OpticalFlow::calcGradient()
                             + Sharr_dy[7] * extd_ptr[u + src_cols]
                             + Sharr_dy[8] * extd_ptr[u + 1 + src_cols];
 #ifndef USE_INT
-                gx_ptr[ic] /= 32;
-                gy_ptr[ic] /= 32;
+                gx_ptr[ic] /= 32.0;
+                gy_ptr[ic] /= 32.0;
 #endif
             }
         }
@@ -162,7 +161,7 @@ void OpticalFlow::trackPoint(const cv::Point2f& pt_prev, cv::Point2f& pt_next, c
         //! check boundary of p's patch
         if(win_start.x < 0 || win_start.y < 0 || win_end.x > pyr_cols || win_end.y > pyr_rows)
         {
-            if (l == 0)
+            if(l == 0)
             {
                 status = 0;
             }
@@ -181,19 +180,18 @@ void OpticalFlow::trackPoint(const cv::Point2f& pt_prev, cv::Point2f& pt_next, c
 
 #ifdef USE_INT
         //! cite from OpenCV
-        const int16_t W_BITS = 5;
-        const float FLT_SCALE = (1 << (W_BITS + 5));
-        int16_t iw00 = roundl(w00*(1 << W_BITS));
-        int16_t iw01 = roundl(w01*(1 << W_BITS));
-        int16_t iw10 = roundl(w10*(1 << W_BITS));
-        int16_t iw11 = (1 << W_BITS) - iw00 - iw01 - iw10;
+        const float FLT_SCALE = 1.0 * (1 << W_BITS);
+        int32_t iw00 = roundl(w00*(1 << W_BITS));
+        int32_t iw01 = roundl(w01*(1 << W_BITS));
+        int32_t iw10 = roundl(w10*(1 << W_BITS));
+        int32_t iw11 = (1 << W_BITS) - iw00 - iw01 - iw10;
 #endif
 
         //! create spatial gradient matrix and previous patch of win_size_
-        cv::Mat prev_w = cv::Mat::zeros(win_size_, CV_32FC1);
+        cv::Mat prev_w = cv::Mat::zeros(win_size_, cv::DataType<gray_type>::type);
         cv::Mat grad_xw = cv::Mat::zeros(win_size_, cv::DataType<deriv_type>::type);
         cv::Mat grad_yw = cv::Mat::zeros(win_size_, cv::DataType<deriv_type>::type);
-        float* pTwi = prev_w.ptr<float>(0);
+        gray_type* pTwi = prev_w.ptr<gray_type>(0);
         deriv_type* pGxw = grad_xw.ptr<deriv_type>(0);
         deriv_type* pGyw = grad_yw.ptr<deriv_type>(0);
 
@@ -209,11 +207,12 @@ void OpticalFlow::trackPoint(const cv::Point2f& pt_prev, cv::Point2f& pt_next, c
 
             for(int xi = 0; xi < win_size_.width; ++xi, pGxw++, pGyw++, pTwi++)
             {
-                float Ti = (w00*pT[xi] + w01*pT[xi+pyr_cols] + w10*pT[xi+1] + w11*pT[xi+pyr_cols+1]);
 #ifdef USE_INT
+                gray_type Ti = iw00*pT[xi] + iw01*pT[xi+pyr_cols] + iw10*pT[xi+1] + iw11*pT[xi+pyr_cols+1];
                 deriv_type dx = iw00*pGx[xi] + iw01*pGx[xi+pyr_cols] + iw10*pGx[xi+1] + iw11*pGx[xi+pyr_cols+1];
                 deriv_type dy = iw00*pGy[xi] + iw01*pGy[xi+pyr_cols] + iw10*pGy[xi+1] + iw11*pGy[xi+pyr_cols+1];
 #else
+                gray_type Ti = (w00*pT[xi] + w01*pT[xi+pyr_cols] + w10*pT[xi+1] + w11*pT[xi+pyr_cols+1]);
                 deriv_type dx = w00*pGx[xi] + w01*pGx[xi+pyr_cols] + w10*pGx[xi+1] + w11*pGx[xi+pyr_cols+1];
                 deriv_type dy = w00*pGy[xi] + w01*pGy[xi+pyr_cols] + w10*pGy[xi+1] + w11*pGy[xi+pyr_cols+1];
 #endif
@@ -248,7 +247,7 @@ void OpticalFlow::trackPoint(const cv::Point2f& pt_prev, cv::Point2f& pt_next, c
         {
 
 #ifdef GET_TIME
-        start_time = clock();
+            start_time = clock();
 #endif
             win_start = cv::Point2f(q.x - half_win_width, q.y - half_win_height);
             win_end = cv::Point2f(win_start.x + win_size_.width, win_start.y + win_size_.height);
@@ -263,18 +262,23 @@ void OpticalFlow::trackPoint(const cv::Point2f& pt_prev, cv::Point2f& pt_next, c
             }
 
             //! bilinear interpolation
-            int x = floor(q.x);
-            int y = floor(q.y);
-            float subpix_x = q.x - x;
-            float subpix_y = q.y - y;
+            x = floor(q.x);
+            y = floor(q.y);
+            subpix_x = q.x - x;
+            subpix_y = q.y - y;
 
-            float w00 = (1.0f - subpix_x)*(1.0f - subpix_y);
-            float w01 = (1.0f - subpix_x)*subpix_y;
-            float w10 = subpix_x*(1.0f - subpix_y);
-            float w11 = 1.0f - w00 - w01 - w10;
-
+            w00 = (1.0f - subpix_x)*(1.0f - subpix_y);
+            w01 = (1.0f - subpix_x)*subpix_y;
+            w10 = subpix_x*(1.0f - subpix_y);
+            w11 = 1.0f - w00 - w01 - w10;
+#ifdef USE_INT
+            iw00 = roundl(w00*(1 << W_BITS));
+            iw01 = roundl(w01*(1 << W_BITS));
+            iw10 = roundl(w10*(1 << W_BITS));
+            iw11 = (1 << W_BITS) - iw00 - iw01 - iw10;
+#endif
             //! get mismatch vector
-            pTwi = prev_w.ptr<float>(0);
+            pTwi = prev_w.ptr<gray_type>(0);
             pGxw = grad_xw.ptr<deriv_type>(0);
             pGyw = grad_yw.ptr<deriv_type>(0);
 
@@ -287,7 +291,11 @@ void OpticalFlow::trackPoint(const cv::Point2f& pt_prev, cv::Point2f& pt_next, c
                 const uint8_t* pIw = &pyr_next.ptr<uint8_t>(yi+y_start)[x_start];
                 for(int xi = 0; xi < win_size_.width; ++xi, pGxw++, pGyw++, pTwi++)
                 {
-                    float Ii = w00*pIw[xi] + w01*pIw[xi+pyr_cols] + w10*pIw[xi+1] + w11*pIw[xi+pyr_cols+1];
+#ifdef USE_INT
+                    gray_type Ii = iw00*pIw[xi] + iw01*pIw[xi+pyr_cols] + iw10*pIw[xi+1] + iw11*pIw[xi+pyr_cols+1];
+#else
+                    gray_type Ii = w00*pIw[xi] + w01*pIw[xi+pyr_cols] + w10*pIw[xi+1] + w11*pIw[xi+pyr_cols+1];
+#endif
                     float diff = (*pTwi) - Ii;
                     deriv_type dx = (*pGxw);
                     deriv_type dy = (*pGyw);
@@ -298,12 +306,13 @@ void OpticalFlow::trackPoint(const cv::Point2f& pt_prev, cv::Point2f& pt_next, c
                     error += abs(diff);
                 }
             }
-            error /= win_eara_;
 
 #ifdef USE_INT
-            delta.x = FLT_SCALE*(G11 * b.x - G01 * b.y)/det;
-            delta.y = FLT_SCALE*(-G01 * b.x + G00 * b.y)/det;
+            error /= win_eara_ * FLT_SCALE;
+            delta.x = 32*(G11 * b.x - G01 * b.y)/det;
+            delta.y = 32*(-G01 * b.x + G00 * b.y)/det;
 #else
+            error /= win_eara_;
             delta.x = (G11 * b.x - G01 * b.y)/det;
             delta.y = (-G01 * b.x + G00 * b.y)/det;
 #endif
@@ -384,6 +393,7 @@ void computePyrLK(const cv::Mat& img_prev, const cv::Mat& img_next, std::vector<
                              << " " << optical_flow.getTimes[2]/optical_flow.nTimes[2]/CLOCKS_PER_SEC
     << "\n      iteration: " << optical_flow.getTimes[3]/CLOCKS_PER_SEC
                              << " " << optical_flow.getTimes[3]/optical_flow.nTimes[3]/CLOCKS_PER_SEC
+    << "\n iter per point: " << optical_flow.nTimes[3]/total_points << " " << optical_flow.nTimes[3]/total_points/(level+1)
     << "\n=================" << std::endl;
 #endif
 

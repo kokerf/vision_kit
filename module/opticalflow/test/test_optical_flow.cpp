@@ -56,6 +56,8 @@ int main(int argc, char const *argv[])
     clock_t end_time = clock();
     cout << "vk::computePyrLK: " << (float)(end_time - start_time) / CLOCKS_PER_SEC <<endl;
 
+    //! check status and get good matchs
+    float avg_error0 = 0;
     for(int i = 0; i < points_prev.size(); i++)
     {
        if(!status0[i])
@@ -70,8 +72,10 @@ int main(int argc, char const *argv[])
        keypoints0.push_back(kp0);
        keypoints1.push_back(kp1);
        matches0.push_back(DMatch(new_i, new_i, 0));
+       avg_error0 += errors0[i];
     }
-    cout << "Total tracking points:" << matches0.size() << endl;
+    avg_error0 /= keypoints0.size();
+    cout << "Total tracking points:" << matches0.size() << ", mean errors:" << avg_error0 << endl;
 
     //! ============================
     //!  cv::calcOpticalFlowPyrLK
@@ -88,6 +92,7 @@ int main(int argc, char const *argv[])
     cout << "cv::calcOpticalFlowPyrLK: " << (float)(end_time - start_time) / CLOCKS_PER_SEC <<endl;
 
     //! check status and get good matchs
+    float avg_error1 = 0;
     for(int i = 0; i < points_prev.size(); i++)
     {
         if(!status1[i])
@@ -102,8 +107,10 @@ int main(int argc, char const *argv[])
         keypoints2.push_back(kp0);
         keypoints3.push_back(kp1);
         matches1.push_back(DMatch(new_i, new_i, 0));
+        avg_error1 += errors1[i];
     }
-    cout << "Total tracking points:" << matches1.size() << endl;
+    avg_error1 /= keypoints2.size();
+    cout << "Total tracking points:" << matches1.size() << ", mean errors:" << avg_error1 << endl;
 
     //! calculate difference
     vector<pair<float,float>> diff;

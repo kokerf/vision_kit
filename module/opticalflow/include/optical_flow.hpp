@@ -12,8 +12,11 @@
 
 #ifdef USE_INT
     #define deriv_type int32_t
+    #define gray_type int32_t
+    #define W_BITS 14
 #else
-    #define deriv_type double
+    #define deriv_type float
+    #define gray_type float
 #endif
 
 namespace vk{
