@@ -13,8 +13,8 @@ set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)
 # Library required
 find_package(OpenCV 3.1.0 EXACT REQUIRED)
 include_directories(${OpenCV_INCLUDE_DIRS})
-find_package(Eigen3 REQUIRED)
-include_directories(${EIGEN3_INCLUDE_DIR})
+#find_package(Eigen3 REQUIRED)
+#include_directories(${EIGEN3_INCLUDE_DIR})
 
 # Module base
 add_subdirectory(module/base)

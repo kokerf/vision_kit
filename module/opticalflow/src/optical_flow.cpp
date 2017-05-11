@@ -229,7 +229,7 @@ void OpticalFlow::trackPoint(const cv::Point2f& pt_prev, cv::Point2f& pt_next, c
         }
 
         float det = G00*G11 - G01*G01;
-        if(abs(det) < VK_EPS)
+        if(std::abs(det) < VK_EPS)
         {
             status = 0;
             std::cerr << " The gradient matrix is irreversible !!!" << std::endl;
@@ -303,7 +303,7 @@ void OpticalFlow::trackPoint(const cv::Point2f& pt_prev, cv::Point2f& pt_next, c
                     b.x += diff * dx;
                     b.y += diff * dy;
 
-                    error += abs(diff);
+                    error += std::abs(diff);
                 }
             }
 

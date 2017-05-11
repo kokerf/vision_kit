@@ -1,4 +1,6 @@
 #include <iostream>
+#include <vector>
+//#include <utility>
 #include <time.h>
 #include <opencv2/opencv.hpp>
 #include <optical_flow.hpp>
@@ -113,7 +115,7 @@ int main(int argc, char const *argv[])
     cout << "Total tracking points:" << matches1.size() << ", mean errors:" << avg_error1 << endl;
 
     //! calculate difference
-    vector<pair<float,float>> diff;
+    vector< pair<float,float> > diff;
     float diff_x = 0;
     float diff_y = 0;
     int diff_n = 0;
