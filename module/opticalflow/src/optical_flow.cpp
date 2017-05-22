@@ -1,6 +1,7 @@
 #include <iostream>
-#include <stdint.h>
 #include <vector>
+#include <cmath>
+#include <stdint.h>
 #include <assert.h>
 #include <time.h>
 
@@ -229,7 +230,7 @@ void OpticalFlow::trackPoint(const cv::Point2f& pt_prev, cv::Point2f& pt_next, c
         }
 
         float det = G00*G11 - G01*G01;
-        if(std::abs(det) < VK_EPS)
+        if(fabs(det) < VK_EPS)
         {
             status = 0;
             std::cerr << " The gradient matrix is irreversible !!!" << std::endl;
@@ -303,7 +304,7 @@ void OpticalFlow::trackPoint(const cv::Point2f& pt_prev, cv::Point2f& pt_next, c
                     b.x += diff * dx;
                     b.y += diff * dy;
 
-                    error += std::abs(diff);
+                    error += fabs(diff);
                 }
             }
 
@@ -318,7 +319,7 @@ void OpticalFlow::trackPoint(const cv::Point2f& pt_prev, cv::Point2f& pt_next, c
 #endif
 
             //! if not in 0-level, 0.01 is small enough
-            if(l>0 && abs(delta.x) < 0.01 && abs(delta.y) < 0.01)
+            if(l>0 && fabs(delta.x) < 0.01 && fabs(delta.y) < 0.01)
             {
                 break;
             }

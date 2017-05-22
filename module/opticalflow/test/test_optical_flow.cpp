@@ -4,7 +4,8 @@
 #include <time.h>
 #include <opencv2/opencv.hpp>
 #include <optical_flow.hpp>
-#include <base.hpp>
+
+#include "base.hpp"
 
 using namespace std;
 using namespace cv;
@@ -129,8 +130,8 @@ int main(int argc, char const *argv[])
 
         float dx = points_next0[i].x - points_next1[i].x;
         float dy = points_next0[i].y - points_next1[i].y;
-        diff_x += abs(dx);
-        diff_y += abs(dy);
+        diff_x += fabs(dx);
+        diff_y += fabs(dy);
         diff_n++;
         diff.push_back(make_pair(dx,dy));
     }

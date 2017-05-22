@@ -2,6 +2,7 @@
 #define _BASE_HPP_
 
 #include <vector>
+#include <cmath>
 #include <stdint.h>
 
 #include <opencv2/core/core.hpp>
