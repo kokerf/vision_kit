@@ -24,3 +24,7 @@ set(Base_SOURCES_DIR ${PROJECT_SOURCE_DIR}/module/base/src)
 # Module opticalflow
 add_subdirectory(module/opticalflow)
 set(Opticalflow_INCLUDE_DIR ${PROJECT_SOURCE_DIR}module/opticalflow/include)
+
+# Module epipolar_geometry
+add_subdirectory(module/epipolar_geometry)
+set(Epipolar_Geometry_INCLUDE_DIR ${PROJECT_SOURCE_DIR}module/epipolar_geometry/include)
