@@ -3,7 +3,6 @@
 #include <cmath>
 #include <stdint.h>
 #include <assert.h>
-#include <time.h>
 
 #include "optical_flow.hpp"
 #include "base.hpp"
@@ -103,7 +102,7 @@ void OpticalFlow::calcGradient()
 void OpticalFlow::createPyramid(const cv::Mat& img_prev, const cv::Mat& img_next)
 {
 #ifdef GET_TIME
-    clock_t start_time0 = clock();
+    double start_time0 = (double)cv::getTickCount();
 #endif
 
     assert(img_prev.type() == CV_8UC1);
@@ -118,16 +117,16 @@ void OpticalFlow::createPyramid(const cv::Mat& img_prev, const cv::Mat& img_next
     pyr_next_.resize(max_level_+1);
 
 #ifdef GET_TIME
-    clock_t start_time1 = clock();
+    double start_time1 = (double)cv::getTickCount();
 #endif
 
     //! calculate gradient for each level
     calcGradient();
 
 #ifdef GET_TIME
-    getTimes[0] += (float)(start_time1-start_time0);
+    getTimes[0] += (double)(start_time1-start_time0)/cv::getTickFrequency();
     nTimes[0]++;
-    getTimes[1] += (float)(clock()-start_time0);
+    getTimes[1] += (double)(cv::getTickCount()-start_time0)/cv::getTickFrequency();
     nTimes[1]++;
 #endif
 }
@@ -141,7 +140,7 @@ void OpticalFlow::trackPoint(const cv::Point2f& pt_prev, cv::Point2f& pt_next, c
     for(int l = max_level; l >= 0; l--)
     {
 #ifdef GET_TIME
-        clock_t start_time = clock();
+        double start_time = (double)cv::getTickCount();
 #endif
         status = 1;
         q *= 2;
@@ -238,7 +237,7 @@ void OpticalFlow::trackPoint(const cv::Point2f& pt_prev, cv::Point2f& pt_next, c
         }
 
 #ifdef GET_TIME
-        getTimes[2] += (float)(clock()-start_time);
+        getTimes[2] += ((double)cv::getTickCount() - start_time) / cv::getTickFrequency();
         nTimes[2]++;
 #endif
         //! iteration
@@ -248,7 +247,7 @@ void OpticalFlow::trackPoint(const cv::Point2f& pt_prev, cv::Point2f& pt_next, c
         {
 
 #ifdef GET_TIME
-            start_time = clock();
+            start_time = (double)cv::getTickCount();
 #endif
             win_start = cv::Point2f(q.x - half_win_width, q.y - half_win_height);
             win_end = cv::Point2f(win_start.x + win_size_.width, win_start.y + win_size_.height);
@@ -333,7 +332,7 @@ void OpticalFlow::trackPoint(const cv::Point2f& pt_prev, cv::Point2f& pt_next, c
             q += delta;
 
 #ifdef GET_TIME
-            getTimes[3] += (float)(clock()-start_time);
+            getTimes[3] += ((double)cv::getTickCount() - start_time) / cv::getTickFrequency();
             nTimes[3]++;
 #endif
         }//! end of iteration
@@ -347,7 +346,7 @@ void computePyrLK(const cv::Mat& img_prev, const cv::Mat& img_next, std::vector<
     std::vector<uchar>& statuses, std::vector<float>& errors, const cv::Size& win_size, const int level, const int times, const float eps)
 {
 #ifdef GET_TIME
-    clock_t start_time = clock();
+    double start_time = (double)cv::getTickCount();
 #endif
 
     const int total_points = points_prev.size();
@@ -382,18 +381,18 @@ void computePyrLK(const cv::Mat& img_prev, const cv::Mat& img_next, std::vector<
     }//! iterator of points
 
 #ifdef GET_TIME
-    optical_flow.getTimes[4] += (double)(clock()-start_time);
+    optical_flow.getTimes[4] += ((double)cv::getTickCount() - start_time) / cv::getTickFrequency();
     optical_flow.nTimes[4]++;
     std::cout << "================="
-    << "\n Total time: "     << optical_flow.getTimes[4]/optical_flow.nTimes[4]/CLOCKS_PER_SEC
-    << "\n create Pyramid: " << optical_flow.getTimes[0]/CLOCKS_PER_SEC
-                      << " " << optical_flow.getTimes[0]/optical_flow.nTimes[0]/CLOCKS_PER_SEC
-    << "\n calc  gradient: " << optical_flow.getTimes[1]/CLOCKS_PER_SEC
-                      << " " << optical_flow.getTimes[1]/optical_flow.nTimes[1]/CLOCKS_PER_SEC
-    << "\n prev   precess: " << optical_flow.getTimes[2]/CLOCKS_PER_SEC
-                             << " " << optical_flow.getTimes[2]/optical_flow.nTimes[2]/CLOCKS_PER_SEC
-    << "\n      iteration: " << optical_flow.getTimes[3]/CLOCKS_PER_SEC
-                             << " " << optical_flow.getTimes[3]/optical_flow.nTimes[3]/CLOCKS_PER_SEC
+    << "\n Total time: "     << optical_flow.getTimes[4]/optical_flow.nTimes[4]
+    << "\n create Pyramid: " << optical_flow.getTimes[0]
+                      << " " << optical_flow.getTimes[0]/optical_flow.nTimes[0]
+    << "\n calc  gradient: " << optical_flow.getTimes[1]
+                      << " " << optical_flow.getTimes[1]/optical_flow.nTimes[1]
+    << "\n prev   precess: " << optical_flow.getTimes[2]
+                             << " " << optical_flow.getTimes[2]/optical_flow.nTimes[2]
+    << "\n      iteration: " << optical_flow.getTimes[3]
+                             << " " << optical_flow.getTimes[3]/optical_flow.nTimes[3]
     << "\n iter per point: " << optical_flow.nTimes[3]/total_points << " " << optical_flow.nTimes[3]/total_points/(level+1)
     << "\n=================" << std::endl;
 #endif

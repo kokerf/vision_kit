@@ -41,7 +41,7 @@ public:
 
 #ifdef GET_TIME
 public:
-    float getTimes[5];
+    double getTimes[5];
     int32_t nTimes[5];
 #endif
 

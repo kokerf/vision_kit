@@ -1,7 +1,6 @@
 #include <iostream>
 #include <vector>
 //#include <utility>
-#include <time.h>
 #include <opencv2/opencv.hpp>
 #include <optical_flow.hpp>
 
@@ -54,10 +53,10 @@ int main(int argc, char const *argv[])
     //! ===========================
     //!  vk::computePyrLK
     //! ===========================
-    clock_t start_time = clock();
+    double cv_start_time = (double)cv::getTickCount();
     vk::computePyrLK(gray0, gray1, points_prev, points_next0, status0, errors0, cv::Size(21, 21), 3, 40, 0.001);
-    clock_t end_time = clock();
-    cout << "vk::computePyrLK: " << (float)(end_time - start_time) / CLOCKS_PER_SEC <<endl;
+    double cv_time = ((double)cv::getTickCount() - cv_start_time) / cv::getTickFrequency();
+    cout << "vk::computePyrLK: " << cv_time <<endl;
 
     //! check status and get good matchs
     float avg_error0 = 0;
@@ -83,7 +82,7 @@ int main(int argc, char const *argv[])
     //! ============================
     //!  cv::calcOpticalFlowPyrLK
     //! ============================
-    start_time = clock();
+    double vk_start_time = (double)cv::getTickCount();
     cv::calcOpticalFlowPyrLK(
         gray0, gray1,
         points_prev, points_next1,
@@ -91,8 +90,8 @@ int main(int argc, char const *argv[])
         cv::Size(21, 21), 3,
         cv::TermCriteria(cv::TermCriteria::COUNT + cv::TermCriteria::EPS, 40, 0.001)
         );
-    end_time = clock();
-    cout << "cv::calcOpticalFlowPyrLK: " << (float)(end_time - start_time) / CLOCKS_PER_SEC <<endl;
+    double vk_time = ((double)cv::getTickCount() - vk_start_time) / cv::getTickFrequency();
+    cout << "cv::calcOpticalFlowPyrLK: " << vk_time <<endl;
 
     //! check status and get good matchs
     float avg_error1 = 0;
