@@ -1,14 +1,17 @@
 #include <iostream>
 #include <vector>
+#include <cstdlib>
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
 #include <opencv2/xfeatures2d.hpp>
 #include <opencv2/calib3d.hpp>
-#include <stdlib.h>
 
 #include "fundamental.hpp"
 
-void getGoodMatches(const cv::Mat& src, const cv::Mat& dest, std::vector<cv::KeyPoint>& kps0, std::vector<cv::KeyPoint>& kps1, std::vector<cv::DMatch>& matches);
+void getGoodMatches(const cv::Mat& src, const cv::Mat& dest, std::vector<cv::KeyPoint>& kps0, std::vector<cv::KeyPoint>& kps1,
+    std::vector<cv::DMatch>& matches);
+int drawEpipolarLines(const cv::Mat& img_prev, const cv::Mat& img_next, cv::Mat& img_epipolar, const cv::Mat& fundamental,
+    const std::vector<cv::Point2f>& pts_prev, const std::vector<cv::Point2f>& pts_next, double& error);
 
 int main(int argc, char const *argv[])
 {
@@ -26,16 +29,14 @@ int main(int argc, char const *argv[])
         std::cout << "Error in open image: " << argv[1] << " " << argv[2] << std:: endl;
         return -1;
     }
+
     cv::Mat gray0, gray1;
     cvtColor(image0, gray0, cv::COLOR_RGB2GRAY);
     cvtColor(image1, gray1, cv::COLOR_RGB2GRAY);
+
     std::vector<cv::KeyPoint> keypoints0, keypoints1;
     std::vector<cv::DMatch> matches;
     getGoodMatches(gray0, gray1, keypoints0, keypoints1, matches);
-    cv::Mat img_matches;
-    drawMatches(image0, keypoints0, image1, keypoints1,
-        matches, img_matches, cv::Scalar::all(-1), cv::Scalar::all(-1),
-        std::vector<char>(), cv::DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS);
 
     if(matches.size() < 8)
     {
@@ -57,85 +58,59 @@ int main(int argc, char const *argv[])
         points1[i] = keypoints1[matches[i].trainIdx].pt;
     }
 
-
-    //! 8POINT algorithm by OpenCV
-    cv::Mat fundamental_matrix0 = findFundamentalMat(points0, points1, cv::FM_8POINT, 3, 0.99);
-    if (fundamental_matrix0.empty())
+    //! by OpenCV
+    double cv_start_time = (double)cv::getTickCount();
+    cv::Mat cv_F = findFundamentalMat(points0, points1, cv::FM_RANSAC, 3, 0.99);
+    double cv_time = ((double)cv::getTickCount() - cv_start_time) / cv::getTickFrequency();
+    if (cv_F.empty())
     {
-        std::cout << "Error in finding fundamental matrix by 8POINT!" << std::endl;
+        std::cout << "Error in finding fundamental matrix by openCV!" << std::endl;
         return -1;
     }
     else
     {
-        std::cout << "Fund fundamental matrix:\n" << fundamental_matrix0 << std::endl;
+        std::cout << "Fund fundamental matrix:\n" << cv_F << std::endl;
     }
 
-    //! 8POINT algorithm by vk
-    cv::Mat fundamental_matrix1 = vk::findFundamentalMat(points0, points1, vk::FM_8POINT);
-    if (fundamental_matrix1.empty())
+    //! by vk
+    double vk_start_time = (double)cv::getTickCount();
+    cv::Mat vk_F = vk::findFundamentalMat(points0, points1, vk::FM_RANSAC, 1.0, -1);
+    double vk_time = ((double)cv::getTickCount() - vk_start_time) / cv::getTickFrequency();
+    if (vk_F.empty())
     {
-        std::cout << "Error in finding fundamental matrix by 8POINT!" << std::endl;
+        std::cout << "Error in finding fundamental matrix by visionkit!" << std::endl;
         return -1;
     }
     else
     {
-        std::cout << "Fund fundamental matrix:\n" << fundamental_matrix1 << std::endl;
+        std::cout << "Fund fundamental matrix:\n" << vk_F << std::endl;
     }
 
     //! Draw epipolar lines
-    cv::Mat img_epipolar0 = image0.clone();
-    cv::Mat img_epipolar1 = image1.clone();
-    int step = points0.size() / 15 + 1;
-    for(int i = 0; i < points0.size(); i+= step)
-    {
-        //! In second image
-        cv::Mat point0 = (cv::Mat_<float>(3, 1) << points0[i].x, points0[i].y, 1);
-        cv::Mat epipolar_line = fundamental_matrix1 * point0;
+    cv::Mat cv_img_epipolar;
+    cv::Mat vk_img_epipolar;
+    double cv_error = 0, vk_error = 0;
+    int cv_count = drawEpipolarLines(image0, image1, cv_img_epipolar, cv_F, points0, points1, cv_error);
+    int vk_count = drawEpipolarLines(image0, image1, vk_img_epipolar, vk_F, points0, points1, vk_error);
+    std::cout << "CV Time: " << cv_time << " Error:" << cv_error << " Inliers:" << cv_count << std::endl;
+    std::cout << "VK Time: " << vk_time << " Error:" << vk_error << " Inliers:" << vk_count << std::endl;
 
-        float a = epipolar_line.at<float>(0, 0);
-        float b = epipolar_line.at<float>(1, 0);
-        float c = epipolar_line.at<float>(2, 0);
-        if(fabs(b) < FLT_EPSILON)
-            continue;
-
-        cv::Point2f start(0, 0), end(image1.cols, 0);
-        start.y = -(a*start.x + c) / b;
-        end.y = -(a*end.x + c) / b;
-
-        cv::Scalar color(255*rand()/RAND_MAX, 255*rand()/RAND_MAX, 255*rand()/RAND_MAX);
-        cv::circle(img_epipolar1, points1[i], 3, color, 1, cv::LINE_AA);
-        cv::line(img_epipolar1, start, end, color);
-
-        //! In first image
-        cv::Mat point1 = (cv::Mat_<float>(3, 1) << points1[i].x, points1[i].y, 1);
-        epipolar_line = fundamental_matrix1.t() * point1;
-
-        a = epipolar_line.at<float>(0, 0);
-        b = epipolar_line.at<float>(1, 0);
-        c = epipolar_line.at<float>(2, 0);
-        if(fabs(b) < FLT_EPSILON)
-            continue;
-
-        start.y = -(a*start.x + c) / b;
-        end.y = -(a*end.x + c) / b;
-
-        cv::circle(img_epipolar0, points0[i], 3, color, 1, cv::LINE_AA);
-        cv::line(img_epipolar0, start, end, color);
-    }
-
-    cv::Mat img_epipolar(img_epipolar0.rows, img_epipolar0.cols*2, img_epipolar0.type());
-    img_epipolar0.copyTo(img_epipolar.colRange(0, img_epipolar0.cols));
-    img_epipolar1.copyTo(img_epipolar.colRange(img_epipolar0.cols, img_epipolar.cols));
+    //! Draw matches
+    cv::Mat img_matches;
+    drawMatches(image0, keypoints0, image1, keypoints1, matches, img_matches, cv::Scalar::all(-1), cv::Scalar::all(-1));
 
     cv::imshow("Good Mathes", img_matches);
-    cv::imshow("Epipolar Lines", img_epipolar);
-    cv::imwrite("matches.png", img_matches);
-    cv::imwrite("img_epipolar.png", img_epipolar);
+    cv::imshow("Epipolar Lines of cv", cv_img_epipolar);
+    cv::imshow("Epipolar Lines of vk", vk_img_epipolar);
+
+    //cv::imwrite("matches.png", img_matches);
+    //cv::imwrite("img_epipolar.png", img_epipolar);
     cv::waitKey(0);
 
     return 0;
 }
-void getGoodMatches(const cv::Mat& src, const cv::Mat& dest, std::vector<cv::KeyPoint>& kps0, std::vector<cv::KeyPoint>& kps1, std::vector<cv::DMatch>& matches)
+void getGoodMatches(const cv::Mat& src, const cv::Mat& dest, std::vector<cv::KeyPoint>& kps0, std::vector<cv::KeyPoint>& kps1,
+    std::vector<cv::DMatch>& matches)
 {
     cv::Ptr<cv::xfeatures2d::SIFT> detector = cv::xfeatures2d::SIFT::create(500);
 
@@ -167,4 +142,87 @@ void getGoodMatches(const cv::Mat& src, const cv::Mat& dest, std::vector<cv::Key
             matches.push_back(temp_matches[i]);
         }
     }
+}
+
+int drawEpipolarLines(const cv::Mat& img_prev, const cv::Mat& img_next, cv::Mat& img_epipolar, const cv::Mat& fundamental,
+    const std::vector<cv::Point2f>& pts_prev, const std::vector<cv::Point2f>& pts_next, double& error)
+{
+    const int N = pts_prev.size();
+    if(N != pts_next.size())
+        return -1;
+
+    cv::Mat img_epipolar1 = img_prev.clone();
+    cv::Mat img_epipolar2 = img_next.clone();
+
+    cv::Mat MF = fundamental.clone();
+    if(MF.type() != CV_32FC1)
+    {
+        MF.convertTo(MF, CV_32FC1);
+    }
+    const float* F = MF.ptr<float>(0);
+    const int cols = img_prev.cols;
+    const float threshold = 3.841;//! sigma = 1
+    int count = 0;
+    error = 0;
+    for(int n = 0; n < N; ++n)
+    {
+        //! point X1 = (u1, v1, 1)^T in first image
+        //! poInt X2 = (u2, v2, 1)^T in second image
+        const double u1 = pts_prev[n].x;
+        const double v1 = pts_prev[n].y;
+        const double u2 = pts_next[n].x;
+        const double v2 = pts_next[n].y;
+
+        //! epipolar line in the second image L2 = (a2, b2, c2)^T = F   * X1
+        //! epipolar line in the first image  L1 = (a1, b1, c1)^T = F^T * X2
+        const double a2 = F[0]*u1 + F[1]*v1 + F[2];
+        const double b2 = F[3]*u1 + F[4]*v1 + F[5];
+        const double c2 = F[6]*u1 + F[7]*v1 + F[8];
+
+        const double a1 = F[0]*u2 + F[3]*v2 + F[6];
+        const double b1 = F[1]*u2 + F[4]*v2 + F[7];
+        const double c1 = F[2]*u2 + F[5]*v2 + F[8];
+
+        const double dist2 = a2*u2 + b2*v2 + c2;
+        const double square_dist2 = dist2*dist2 / (a2*a2 + b2*b2);
+
+        const double dist1 = a1*u1 + b1*v1 + c1;
+        const double square_dist1 = dist1*dist1 / (a1*a1 + b1*b1);
+
+        if (square_dist1 < threshold && square_dist2 < threshold)
+        {
+            count++;
+            error += square_dist1 + square_dist2;
+        }
+        else
+            continue;
+
+        if(fabs(b1) < FLT_EPSILON || fabs(b2) < FLT_EPSILON)
+            continue;
+
+        //! points of the epipolar line within the image
+        cv::Point2f start1(0, 0), end1(cols, 0), start2(0, 0), end2(cols, 0);
+        start2.y = -(a2*start2.x + c2) / b2;
+        end2.y = -(a2*end2.x + c2) / b2;
+        start1.y = -(a1*start1.x + c1) / b1;
+        end1.y = -(a1*end1.x + c1) / b1;
+
+        //! draw lines and points in each image
+        cv::Scalar color(255*rand()/RAND_MAX, 255*rand()/RAND_MAX, 255*rand()/RAND_MAX);
+
+        cv::circle(img_epipolar1, pts_prev[n], 3, color, 1, cv::LINE_AA);
+        cv::line(img_epipolar1, start1, end1, color);
+
+        cv::circle(img_epipolar2, pts_next[n], 3, color, 1, cv::LINE_AA);
+        cv::line(img_epipolar2, start2, end2, color);
+    }
+    if(count != 0)
+        error /= count;
+
+    //! copy the two images into one image
+    img_epipolar = cv::Mat(img_epipolar1.rows, img_epipolar1.cols*2, img_epipolar1.type());
+    img_epipolar1.copyTo(img_epipolar.colRange(0, cols));
+    img_epipolar2.copyTo(img_epipolar.colRange(cols, 2*cols));
+
+    return count;
 }

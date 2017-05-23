@@ -2,7 +2,7 @@
 set(Module "epipolar_geometry")
 
 # Include required
-include_directories(include)
+include_directories(include ${Base_INCLUDE_DIR})
 
 # Execute output
 add_executable(test_fundamental test/test_fundamental.cpp src/fundamental.cpp)

@@ -3,15 +3,12 @@
 
 #include <vector>
 #include <cmath>
+#include <cstdlib>
 #include <stdint.h>
 
 #include <opencv2/core/core.hpp>
 
-#define VK_EPS 1e-20
-
-#define VK_DESCALE(x,n) (((x) + (1 << ((n)-1))) >> (n))
-
-#define VK_MIN(x,y) ((x>y)?y:x)
+#include "math.hpp"
 
 namespace vk{
 
