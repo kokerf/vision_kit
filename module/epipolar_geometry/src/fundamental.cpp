@@ -80,20 +80,18 @@ void Fundamental::Normalize(const std::vector<cv::Point2f>& points, std::vector<
 
 cv::Mat Fundamental::slove()
 {
-
-    cv::Mat F;
     switch(run_type_)
     {
     //case vk::FM_7POINT: run7points();
-    case vk::FM_8POINT: F = run8points(pts_prev_norm_, pts_next_norm_); break;
-    case vk::FM_RANSAC: F = runRANSAC(pts_prev_norm_, pts_next_norm_, inliners_); break;
+    case vk::FM_8POINT: F_ = run8points(pts_prev_norm_, pts_next_norm_, T1_, T2_); break;
+    case vk::FM_RANSAC: F_ = runRANSAC(pts_prev_norm_, pts_next_norm_, T1_, T2_, inliners_); break;
     default: break;
     }
 
-    return F;
+    return F_;
 }
 
-cv::Mat Fundamental::run8points(const std::vector<cv::Point2f>& pts_prev, const std::vector<cv::Point2f>& pts_next)
+cv::Mat Fundamental::run8points(const std::vector<cv::Point2f>& pts_prev, const std::vector<cv::Point2f>& pts_next, cv::Mat& T1, cv::Mat& T2)
 {
     const int N = pts_prev.size();
     assert(N >= 8);
@@ -131,7 +129,7 @@ cv::Mat Fundamental::run8points(const std::vector<cv::Point2f>& pts_prev, const 
 
     cv::Mat F_norm = u*cv::Mat::diag(w)*vt;
 
-    cv::Mat F = T2_.t()*F_norm*T1_;
+    cv::Mat F = T2.t()*F_norm*T1;
     float F22 = F.at<float>(2, 2);
     if(fabs(F22) > FLT_EPSILON)
         F /= F22;
@@ -139,13 +137,13 @@ cv::Mat Fundamental::run8points(const std::vector<cv::Point2f>& pts_prev, const 
     return F;
 }
 
-cv::Mat Fundamental::runRANSAC(const std::vector<cv::Point2f>& pts_prev, const std::vector<cv::Point2f>& pts_next, cv::Mat& inliners)
+cv::Mat Fundamental::runRANSAC(const std::vector<cv::Point2f>& pts_prev, const std::vector<cv::Point2f>& pts_next, cv::Mat& T1, cv::Mat& T2, cv::Mat& inliners)
 {
     const int N = pts_prev.size();
     assert(N >= 8);
 
     const double threshold = 3.841*sigma2_;
-    cv::Mat F_out;
+    //cv::Mat F_out;
 
     bool adaptive = true;
     int niters = 1000;
@@ -162,8 +160,8 @@ cv::Mat Fundamental::runRANSAC(const std::vector<cv::Point2f>& pts_prev, const s
         total_points.push_back(i);
     }
 
-    std::vector<cv::Point2f> pt0(8);
     std::vector<cv::Point2f> pt1(8);
+    std::vector<cv::Point2f> pt2(8);
     int max_inliners = 0;
     char* inliners_arr;
     for(int iter = 0; iter < niters; iter++)
@@ -172,52 +170,29 @@ cv::Mat Fundamental::runRANSAC(const std::vector<cv::Point2f>& pts_prev, const s
         for(int i = 0; i < 8; ++i)
         {
             int randi = vk::Rand(0, points.size()-1);
-            pt0[i] = pts_prev_norm_[points[randi]];
-            pt1[i] = pts_next_norm_[points[randi]];
+            pt1[i] = pts_prev_norm_[points[randi]];
+            pt2[i] = pts_next_norm_[points[randi]];
 
             points[randi] = points.back();
             points.pop_back();
         }
 
-        cv::Mat F_temp = run8points(pt0, pt1);
-        float *F = F_temp.ptr<float>(0);
+        cv::Mat F_temp = run8points(pt1, pt2, T1, T2);
 
         int inliers_count = 0;
         cv::Mat inliners_temp = cv::Mat::zeros(N, 1, CV_8UC1);
         inliners_arr = inliners_temp.ptr<char>(0);
         for(int n = 0; n < N; ++n)
         {
-            //! point X1 = (u1, v1, 1)^T in first image
-            //! poInt X2 = (u2, v2, 1)^T in second image
-            const double u1 = pts_prev_[n].x;
-            const double v1 = pts_prev_[n].y;
-            const double u2 = pts_next_[n].x;
-            const double v2 = pts_next_[n].y;
-
-            //! epipolar line in the second image L2 = (a2, b2, c2)^T = F   * X1
-            const double a2 = F[0]*u1 + F[1]*v1 + F[2];
-            const double b2 = F[3]*u1 + F[4]*v1 + F[5];
-            const double c2 = F[6]*u1 + F[7]*v1 + F[8];
-            //! epipolar line in the first image  L1 = (a1, b1, c1)^T = F^T * X2
-            const double a1 = F[0]*u2 + F[3]*v2 + F[6];
-            const double b1 = F[1]*u2 + F[4]*v2 + F[7];
-            const double c1 = F[2]*u2 + F[5]*v2 + F[8];
-
-            //! distance from point to line: d^2 = |ax+by+c|^2/(a^2+b^2)
-            //! X2 to L2 in second image
-            const double dist2 = a2*u2 + b2*v2 + c2;
-            const double square_dist2 = dist2*dist2/(a2*a2 + b2*b2);
-            //! X1 to L1 in first image
-            const double dist1 = a1*u1 + b1*v1 + c1;
-            const double square_dist1 = dist1*dist1/(a1*a1 + b1*b1);
-
-            const double error = VK_MAX(square_dist1, square_dist2);
+            float error1, error2;
+            getErrors(pts_prev_[n], pts_next_[n], F_temp.ptr<float>(0), error1, error2);
+            const float error = VK_MAX(error1, error2);
 
             if(error < threshold)
             {
                 inliners_arr[n] = 1;
                 inliers_count++;
-                F_out = F_temp;
+                //F_out = F_temp;
             }
 
         }
@@ -236,8 +211,8 @@ cv::Mat Fundamental::runRANSAC(const std::vector<cv::Point2f>& pts_prev, const s
 
     }//! iterations
 
-    pt0.clear();
     pt1.clear();
+    pt2.clear();
     inliners_arr = inliners.ptr<char>(0);
     for(int n = 0; n < N; ++n)
     {
@@ -246,11 +221,41 @@ cv::Mat Fundamental::runRANSAC(const std::vector<cv::Point2f>& pts_prev, const s
             continue;
         }
 
-        pt0.push_back(pts_prev_norm_[n]);
-        pt1.push_back(pts_next_norm_[n]);
+        pt1.push_back(pts_prev_norm_[n]);
+        pt2.push_back(pts_next_norm_[n]);
     }
 
-    return run8points(pt0, pt1);
+    return run8points(pt1, pt2, T1, T2);
+}
+
+inline void Fundamental::getErrors(const cv::Point2f& p1, const cv::Point2f& p2, const float* F, float& err1, float& err2)
+{
+    //! point X1 = (u1, v1, 1)^T in first image
+    //! poInt X2 = (u2, v2, 1)^T in second image
+    const float u1 = p1.x;
+    const float v1 = p1.y;
+    const float u2 = p2.x;
+    const float v2 = p2.y;
+
+    //! epipolar line in the second image L2 = (a2, b2, c2)^T = F   * X1
+    const float a2 = F[0]*u1 + F[1]*v1 + F[2];
+    const float b2 = F[3]*u1 + F[4]*v1 + F[5];
+    const float c2 = F[6]*u1 + F[7]*v1 + F[8];
+    //! epipolar line in the first image  L1 = (a1, b1, c1)^T = F^T * X2
+    const float a1 = F[0]*u2 + F[3]*v2 + F[6];
+    const float b1 = F[1]*u2 + F[4]*v2 + F[7];
+    const float c1 = F[2]*u2 + F[5]*v2 + F[8];
+
+    //! distance from point to line: d^2 = |ax+by+c|^2/(a^2+b^2)
+    //! X2 to L2 in second image
+    const float dist2 = a2*u2 + b2*v2 + c2;
+    const float square_dist2 = dist2*dist2/(a2*a2 + b2*b2);
+    //! X1 to L1 in first image
+    const float dist1 = a1*u1 + b1*v1 + c1;
+    const float square_dist1 = dist1*dist1/(a1*a1 + b1*b1);
+
+    err1 = square_dist1;
+    err2 = square_dist2;
 }
 
 

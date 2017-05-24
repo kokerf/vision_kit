@@ -21,7 +21,7 @@ int main(int argc, char const *argv[])
 {
     if (argc != 3)
     {
-        std::cout << "Usage: ./find_F_matrix first_image second_image" << std::endl;
+        std::cout << "Usage: ./test_fundamental first_image second_image" << std::endl;
         return -1;
     }
 
@@ -96,6 +96,7 @@ int main(int argc, char const *argv[])
     double cv_error = 0, vk_error = 0;
     int cv_count = drawEpipolarLines(image0, image1, cv_img_epipolar, cv_F, points0, points1, cv_error);
     int vk_count = drawEpipolarLines(image0, image1, vk_img_epipolar, vk_F, points0, points1, vk_error);
+    std::cout << "Total points:" << points0.size() << std::endl;
     std::cout << "CV Time: " << cv_time << " Error:" << cv_error << " Inliers:" << cv_count << std::endl;
     std::cout << "VK Time: " << vk_time << " Error:" << vk_error << " Inliers:" << vk_count << std::endl;
 
