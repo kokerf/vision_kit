@@ -13,6 +13,10 @@ set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)
 # Library required
 find_package(OpenCV 3.1.0 EXACT REQUIRED)
 include_directories(${OpenCV_INCLUDE_DIRS})
+if(OPENCV_XFEATURES2D_FOUND)
+    add_definitions(-DUSE_XFEATURES2D)
+endif(OPENCV_XFEATURES2D_FOUND)
+
 #find_package(Eigen3 REQUIRED)
 #include_directories(${EIGEN3_INCLUDE_DIR})
 

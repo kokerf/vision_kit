@@ -3,8 +3,12 @@
 #include <cstdlib>
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
-#include <opencv2/xfeatures2d.hpp>
 #include <opencv2/calib3d.hpp>
+#ifdef USE_XFEATURES2D
+#include <opencv2/xfeatures2d.hpp>
+#else
+#include <opencv2/features2d/features2d.hpp>
+#endif
 
 #include "fundamental.hpp"
 
@@ -112,7 +116,11 @@ int main(int argc, char const *argv[])
 void getGoodMatches(const cv::Mat& src, const cv::Mat& dest, std::vector<cv::KeyPoint>& kps0, std::vector<cv::KeyPoint>& kps1,
     std::vector<cv::DMatch>& matches)
 {
+#ifdef USE_XFEATURES2D
     cv::Ptr<cv::xfeatures2d::SIFT> detector = cv::xfeatures2d::SIFT::create(500);
+#else
+    cv::Ptr<cv::ORB> detector = cv::ORB::create(1000);
+#endif
 
     kps0.clear();
     kps1.clear();
@@ -120,7 +128,12 @@ void getGoodMatches(const cv::Mat& src, const cv::Mat& dest, std::vector<cv::Key
     detector->detectAndCompute(src, cv::Mat(), kps0, descriptors0);
     detector->detectAndCompute(dest, cv::Mat(), kps1, descriptors1);
 
+#ifdef USE_XFEATURES2D
     cv::FlannBasedMatcher matcher;
+#else
+    cv::BFMatcher matcher(cv::NORM_HAMMING);
+#endif
+
     std::vector<cv::DMatch> temp_matches;
     matcher.match(descriptors0, descriptors1, temp_matches);
 
@@ -208,7 +221,7 @@ int drawEpipolarLines(const cv::Mat& img_prev, const cv::Mat& img_next, cv::Mat&
         end1.y = -(a1*end1.x + c1) / b1;
 
         //! draw lines and points in each image
-        cv::Scalar color(255*rand()/RAND_MAX, 255*rand()/RAND_MAX, 255*rand()/RAND_MAX);
+        cv::Scalar color(255.0*rand()/RAND_MAX, 255.0*rand()/RAND_MAX, 255.0*rand()/RAND_MAX);
 
         cv::circle(img_epipolar1, pts_prev[n], 3, color, 1, cv::LINE_AA);
         cv::line(img_epipolar1, start1, end1, color);
