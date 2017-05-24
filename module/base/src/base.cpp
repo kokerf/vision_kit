@@ -228,7 +228,7 @@ bool align2D(const cv::Mat& T, const cv::Mat& I, const cv::Mat& GTx, const cv::M
 
 //! https://github.com/uzh-rpg/rpg_vikit/blob/master/vikit_common/include/vikit/vision.h
 //! WARNING This function does not check whether the x/y is within the border
-float interpolateMat_32f(const cv::Mat& mat, float u, float v)
+inline float interpolateMat_32f(const cv::Mat& mat, float u, float v)
 {
     assert(mat.type() == CV_32F);
     float x = floor(u);
@@ -247,7 +247,7 @@ float interpolateMat_32f(const cv::Mat& mat, float u, float v)
     return (wx0*wy0)*val00 + (wx1*wy0)*val10 + (wx0*wy1)*val01 + (wx1*wy1)*val11;
 }
 
-float interpolateMat_8u(const cv::Mat& mat, float u, float v)
+inline float interpolateMat_8u(const cv::Mat& mat, float u, float v)
 {
     assert(mat.type() == CV_8UC1);
     int x = floor(u);
@@ -264,6 +264,48 @@ float interpolateMat_8u(const cv::Mat& mat, float u, float v)
     const int stride = mat.step.p[0];
     unsigned char* ptr = mat.data + y*stride + x;
     return w00*ptr[0] + w01*ptr[stride] + w10*ptr[1] + w11*ptr[stride + 1];
+}
+
+void Normalize(const std::vector<cv::Point2f>& points, std::vector<cv::Point2f>& points_norm, cv::Mat& T)
+{
+    const int N = points.size();
+    if(N == 0)
+        return;
+
+    points_norm.resize(N);
+
+    cv::Point2f mean(0,0);
+    for(int i = 0; i < N; ++i)
+    {
+        mean += points[i];
+    }
+    mean = mean/N;
+
+    cv::Point2f mean_dev(0,0);
+
+    for(int i = 0; i < N; ++i)
+    {
+        points_norm[i] = points[i] - mean;
+
+        mean_dev.x += fabs(points_norm[i].x);
+        mean_dev.y += fabs(points_norm[i].y);
+    }
+    mean_dev /= N;
+
+    const float scale_x = 1.0/mean_dev.x;
+    const float scale_y = 1.0/mean_dev.y;
+
+    for(int i=0; i<N; i++)
+    {
+        points_norm[i].x *= scale_x;
+        points_norm[i].y *= scale_y;
+    }
+
+    T = cv::Mat::eye(3,3,CV_32F);
+    T.at<float>(0,0) = scale_x;
+    T.at<float>(1,1) = scale_y;
+    T.at<float>(0,2) = -mean.x*scale_x;
+    T.at<float>(1,2) = -mean.y*scale_y;
 }
 
 }//! vk

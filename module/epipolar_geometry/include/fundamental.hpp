@@ -20,8 +20,8 @@ enum FundamentalType {
  * @param  iterations [iteration times fot RANSAC. If set to -1, use self-adaptive iteration]
  * @return            [fundamental matrix]
  */
-cv::Mat findFundamentalMat(const std::vector<cv::Point2f>& pts_prev, const std::vector<cv::Point2f>& pts_next, FundamentalType type=FM_8POINT,
-    float sigma=1, int iterations=-1);
+cv::Mat findFundamentalMat(const std::vector<cv::Point2f>& pts_prev, const std::vector<cv::Point2f>& pts_next,
+    FundamentalType type=FM_8POINT, float sigma=1, int iterations=-1);
 
 /**
  * Fundametal matrix to find
@@ -29,7 +29,8 @@ cv::Mat findFundamentalMat(const std::vector<cv::Point2f>& pts_prev, const std::
 class Fundamental
 {
 public:
-    Fundamental(const std::vector<cv::Point2f>& pts_prev, const std::vector<cv::Point2f>& pts_next, FundamentalType type, float sigma=1, int iterations=-1);
+    Fundamental(const std::vector<cv::Point2f>& pts_prev, const std::vector<cv::Point2f>& pts_next,
+        FundamentalType type=FM_RANSAC, float sigma=1, int iterations=-1);
 
     ~Fundamental();
 
@@ -46,23 +47,16 @@ public:
     cv::Mat getInliers();
 
 /**
- * [getErrors get the distance from point to its epipolar line]
+ * [computeErrors get the distance from point to its epipolar line]
  * @param p1   [point in the first image]
  * @param p2   [point in the second image]
  * @param F    [3*3 array, fundamental matrix of the two images]
  * @param err1 [distance of p1 to its epipolar line]
  * @param err2 [distance of p2 to its epipolar line]
  */
-    static inline void getErrors(const cv::Point2f& p1, const cv::Point2f& p2, const float* F, float& err1, float& err2);
+    static inline void computeErrors(const cv::Point2f& p1, const cv::Point2f& p2, const float* F, float& err1, float& err2);
 
 private:
-/**
- * [Normalize normalize points by isotropic scaling]
- * @param points      [points input for mormalizing]
- * @param points_norm [normalized points]
- * @param T           [Transform matrix of normalizing]
- */
-    void Normalize(const std::vector<cv::Point2f>& points, std::vector<cv::Point2f>& points_norm, cv::Mat& T);
 
 /**
  * [run8points 8-points algrothm]

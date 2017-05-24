@@ -1,6 +1,10 @@
 #ifndef _MATH_HPP_
 #define _MATH_HPP_
 
+#include <cmath>
+#include <cstdlib>
+#include <stdint.h>
+
 #define VK_EPS 1e-20
 
 #define VK_DESCALE(x,n) (((x) + (1 << ((n)-1))) >> (n))

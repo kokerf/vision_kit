@@ -4,19 +4,22 @@
 #include <assert.h>
 #include <opencv2/core/core.hpp>
 #include <opencv2/imgproc.hpp>
+
 #include "base.hpp"
 #include "fundamental.hpp"
 
 namespace vk{
 
-cv::Mat findFundamentalMat(const std::vector<cv::Point2f>& pts_prev, const std::vector<cv::Point2f>& pts_next, FundamentalType type, float sigma, int iterations)
+cv::Mat findFundamentalMat(const std::vector<cv::Point2f>& pts_prev, const std::vector<cv::Point2f>& pts_next,
+    FundamentalType type, float sigma, int iterations)
 {
     Fundamental fundamental(pts_prev, pts_next, type, sigma, iterations);
 
     return fundamental.slove();
 }
 
-Fundamental::Fundamental(const std::vector<cv::Point2f>& pts_prev, const std::vector<cv::Point2f>& pts_next, FundamentalType type, float sigma, int iterations):
+Fundamental::Fundamental(const std::vector<cv::Point2f>& pts_prev, const std::vector<cv::Point2f>& pts_next,
+    FundamentalType type, float sigma, int iterations):
     pts_prev_(pts_prev), pts_next_(pts_next), run_type_(type), sigma2_(sigma*sigma), iterations_(iterations)
 {
     assert(pts_prev.size() == pts_next.size());
@@ -26,9 +29,14 @@ Fundamental::Fundamental(const std::vector<cv::Point2f>& pts_prev, const std::ve
 
 Fundamental::~Fundamental()
 {
+    pts_prev_.clear();
+    pts_next_.clear();
     pts_prev_norm_.clear();
     pts_next_norm_.clear();
+
+    inliners_.release();
     T1_.release(), T2_.release();
+    F_.release();
 }
 
 cv::Mat Fundamental::getInliers()
@@ -37,45 +45,6 @@ cv::Mat Fundamental::getInliers()
         return inliners_.clone();
 
     return cv::Mat();
-}
-
-void Fundamental::Normalize(const std::vector<cv::Point2f>& points, std::vector<cv::Point2f>& points_norm, cv::Mat& T)
-{
-    const int N = points.size();
-    points_norm.resize(N);
-
-    cv::Point2f mean(0,0);
-    for(int i = 0; i < N; ++i)
-    {
-        mean += points[i];
-    }
-    mean = mean/N;
-
-    cv::Point2f mean_dev(0,0);
-
-    for(int i = 0; i < N; ++i)
-    {
-        points_norm[i] = points[i] - mean;
-
-        mean_dev.x += fabs(points_norm[i].x);
-        mean_dev.y += fabs(points_norm[i].y);
-    }
-    mean_dev /= N;
-
-    const float scale_x = 1.0/mean_dev.x;
-    const float scale_y = 1.0/mean_dev.y;
-
-    for(int i=0; i<N; i++)
-    {
-        points_norm[i].x *= scale_x;
-        points_norm[i].y *= scale_y;
-    }
-
-    T = cv::Mat::eye(3,3,CV_32F);
-    T.at<float>(0,0) = scale_x;
-    T.at<float>(1,1) = scale_y;
-    T.at<float>(0,2) = -mean.x*scale_x;
-    T.at<float>(1,2) = -mean.y*scale_y;
 }
 
 cv::Mat Fundamental::slove()
@@ -185,7 +154,8 @@ cv::Mat Fundamental::runRANSAC(const std::vector<cv::Point2f>& pts_prev, const s
         for(int n = 0; n < N; ++n)
         {
             float error1, error2;
-            getErrors(pts_prev_[n], pts_next_[n], F_temp.ptr<float>(0), error1, error2);
+            computeErrors(pts_prev_[n], pts_next_[n], F_temp.ptr<float>(0), error1, error2);
+
             const float error = VK_MAX(error1, error2);
 
             if(error < threshold)
@@ -228,7 +198,7 @@ cv::Mat Fundamental::runRANSAC(const std::vector<cv::Point2f>& pts_prev, const s
     return run8points(pt1, pt2, T1, T2);
 }
 
-inline void Fundamental::getErrors(const cv::Point2f& p1, const cv::Point2f& p2, const float* F, float& err1, float& err2)
+inline void Fundamental::computeErrors(const cv::Point2f& p1, const cv::Point2f& p2, const float* F, float& err1, float& err2)
 {
     //! point X1 = (u1, v1, 1)^T in first image
     //! poInt X2 = (u2, v2, 1)^T in second image

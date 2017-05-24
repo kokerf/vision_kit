@@ -19,7 +19,7 @@ int drawEpipolarLines(const cv::Mat& img_prev, const cv::Mat& img_next, cv::Mat&
 
 int main(int argc, char const *argv[])
 {
-    if (argc != 3)
+    if(argc != 3)
     {
         std::cout << "Usage: ./test_fundamental first_image second_image" << std::endl;
         return -1;
@@ -47,7 +47,6 @@ int main(int argc, char const *argv[])
         std::cout << "No enough match points! Please ajust the parameters in keypoint matching or change the input images" << std::endl;
         return -1;
     }
-    std::sort(matches.begin(), matches.end());
 
     //! Estimation of fundamental matrix using the 8POINT algorithm
     int point_count = matches.size();
@@ -104,7 +103,7 @@ int main(int argc, char const *argv[])
     cv::Mat img_matches;
     drawMatches(image0, keypoints0, image1, keypoints1, matches, img_matches, cv::Scalar::all(-1), cv::Scalar::all(-1));
 
-    cv::imshow("Good Mathes", img_matches);
+    cv::imshow("Good Matches", img_matches);
     cv::imshow("Epipolar Lines of cv", cv_img_epipolar);
     cv::imshow("Epipolar Lines of vk", vk_img_epipolar);
 
@@ -114,6 +113,7 @@ int main(int argc, char const *argv[])
 
     return 0;
 }
+
 void getGoodMatches(const cv::Mat& src, const cv::Mat& dest, std::vector<cv::KeyPoint>& kps0, std::vector<cv::KeyPoint>& kps1,
     std::vector<cv::DMatch>& matches)
 {
@@ -156,6 +156,8 @@ void getGoodMatches(const cv::Mat& src, const cv::Mat& dest, std::vector<cv::Key
             matches.push_back(temp_matches[i]);
         }
     }
+
+    std::sort(matches.begin(), matches.end());
 }
 
 int drawEpipolarLines(const cv::Mat& img_prev, const cv::Mat& img_next, cv::Mat& img_epipolar, const cv::Mat& fundamental,
