@@ -60,30 +60,30 @@ int main(int argc, char const *argv[])
 
     //! by OpenCV
     double cv_start_time = (double)cv::getTickCount();
-    cv::Mat cv_H = cv::findHomography(points0, points1, 0);
+    cv::Mat cv_H = cv::findHomography(points0, points1, cv::RANSAC);
     double cv_time = ((double)cv::getTickCount() - cv_start_time) / cv::getTickFrequency();
     if (cv_H.empty())
     {
-        std::cout << "Error in finding fundamental matrix by openCV!" << std::endl;
+        std::cout << "Error in finding homography matrix by openCV!" << std::endl;
         return -1;
     }
     else
     {
-        std::cout << "Fund fundamental matrix:\n" << cv_H << std::endl;
+        std::cout << "Fund homography matrix:\n" << cv_H << std::endl;
     }
 
     //! by vk
     double vk_start_time = (double)cv::getTickCount();
-    cv::Mat vk_F = vk::findHomographyMat(points0, points1, vk::HM_DLT, 1.0, -1);
+    cv::Mat vk_F = vk::findHomographyMat(points0, points1, vk::HM_RANSAC, 1.0, -1);
     double vk_time = ((double)cv::getTickCount() - vk_start_time) / cv::getTickFrequency();
     if (vk_F.empty())
     {
-        std::cout << "Error in finding fundamental matrix by visionkit!" << std::endl;
+        std::cout << "Error in finding homography matrix by visionkit!" << std::endl;
         return -1;
     }
     else
     {
-        std::cout << "Fund fundamental matrix:\n" << vk_F << std::endl;
+        std::cout << "Fund homography matrix:\n" << vk_F << std::endl;
     }
 
     double cv_error = 0, vk_error = 0;
@@ -142,7 +142,7 @@ void getGoodMatches(const cv::Mat& src, const cv::Mat& dest, std::vector<cv::Key
     matches.clear();
     for (int i = 0; i < descriptors0.rows; i++)
     {
-        if (temp_matches[i].distance < 3 * min_dist)
+        if (temp_matches[i].distance < 5 * min_dist)
         {
             matches.push_back(temp_matches[i]);
         }

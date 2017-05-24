@@ -76,7 +76,7 @@ bool align2D(const cv::Mat& T, const cv::Mat& I, const cv::Mat& GTx, const cv::M
  * @param  v   [pixel location in rows]
  * @return     [the value of bilinear interpolation]
  */
-inline float interpolateMat_32f(const cv::Mat& mat, float u, float v);
+inline float interpolateMat_32f(const cv::Mat& mat, const float u, const float v);
 
 /**
  * [interpolateMat_8u bilinear interpolation of uchar image]
@@ -85,7 +85,7 @@ inline float interpolateMat_32f(const cv::Mat& mat, float u, float v);
  * @param  v   [pixel location in rows]
  * @return     [the value of bilinear interpolation]
  */
-inline float interpolateMat_8u(const cv::Mat& mat, float u, float v);
+inline float interpolateMat_8u(const cv::Mat& mat, const float u, const float v);
 
 /**
  * [Normalize normalize points by isotropic scaling]
@@ -94,6 +94,8 @@ inline float interpolateMat_8u(const cv::Mat& mat, float u, float v);
  * @param T           [Transform matrix of normalizing]
  */
 void Normalize(const std::vector<cv::Point2f>& points, std::vector<cv::Point2f>& points_norm, cv::Mat& T);
+
+extern inline float transferError(const cv::Point2f& p1, const cv::Point2f& p2, const float* H12);
 
 }//! vk
 

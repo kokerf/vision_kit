@@ -228,7 +228,7 @@ bool align2D(const cv::Mat& T, const cv::Mat& I, const cv::Mat& GTx, const cv::M
 
 //! https://github.com/uzh-rpg/rpg_vikit/blob/master/vikit_common/include/vikit/vision.h
 //! WARNING This function does not check whether the x/y is within the border
-inline float interpolateMat_32f(const cv::Mat& mat, float u, float v)
+inline float interpolateMat_32f(const cv::Mat& mat, const float u, const float v)
 {
     assert(mat.type() == CV_32F);
     float x = floor(u);
@@ -247,7 +247,7 @@ inline float interpolateMat_32f(const cv::Mat& mat, float u, float v)
     return (wx0*wy0)*val00 + (wx1*wy0)*val10 + (wx0*wy1)*val01 + (wx1*wy1)*val11;
 }
 
-inline float interpolateMat_8u(const cv::Mat& mat, float u, float v)
+inline float interpolateMat_8u(const cv::Mat& mat, const float u, const float v)
 {
     assert(mat.type() == CV_8UC1);
     int x = floor(u);
@@ -306,6 +306,20 @@ void Normalize(const std::vector<cv::Point2f>& points, std::vector<cv::Point2f>&
     T.at<float>(1,1) = scale_y;
     T.at<float>(0,2) = -mean.x*scale_x;
     T.at<float>(1,2) = -mean.y*scale_y;
+}
+
+inline float transferError(const cv::Point2f& p1, const cv::Point2f& p2, const float* H12)
+{
+    const float u1 = p1.x;
+    const float v1 = p1.y;
+    const float u2 = p2.x;
+    const float v2 = p2.y;
+
+    const float w1in2 = H12[6] * u1 + H12[7] * v1 + H12[8];
+    const float u1in2 = (H12[0] * u1 + H12[1] * v1 + H12[2]) / w1in2;
+    const float v1in2 = (H12[3] * u1 + H12[4] * v1 + H12[5]) / w1in2;
+
+    return (u2 - u1in2)*(u2 - u1in2) + (v2 - v1in2)*(v2 - v1in2);
 }
 
 }//! vk

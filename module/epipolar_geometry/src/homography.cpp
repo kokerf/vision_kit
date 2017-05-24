@@ -40,7 +40,7 @@ cv::Mat Homography::slove()
     switch(run_type_)
     {
     case HM_DLT: H_ = runDLT(pts_prev_norm_, pts_next_norm_, T1_, T2_); break;
-    case HM_RANSAC:; break;
+    case HM_RANSAC: H_ = runRANSAC(pts_prev_norm_, pts_next_norm_, T1_, T2_, cv::Mat()); break;
     default: break;
     }
 
@@ -94,6 +94,97 @@ cv::Mat Homography::runDLT(const std::vector<cv::Point2f>& pts_prev, const std::
         H /= H22;
 
     return H;
+}
+
+cv::Mat Homography::runRANSAC(const std::vector<cv::Point2f>& pts_prev, const std::vector<cv::Point2f>& pts_next, cv::Mat& T1, cv::Mat& T2, cv::Mat& inliners)
+{
+    const int N = pts_prev.size();
+    assert(N >= 8);
+
+    const double threshold = 5.991*sigma2_;
+
+    bool adaptive = true;
+    int niters = 1000;
+    if(iterations_ != -1)
+    {
+        adaptive = false;
+        niters = VK_MIN(niters, iterations_);
+        niters = VK_MIN(niters, 20);//! min is 20
+    }
+
+    std::vector<int> total_points;
+    for(int i = 0; i < N; ++i)
+    {
+        total_points.push_back(i);
+    }
+
+    std::vector<cv::Point2f> pt1(8);
+    std::vector<cv::Point2f> pt2(8);
+    int max_inliners = 0;
+    char* inliners_arr;
+    for(int iter = 0; iter < niters; iter++)
+    {
+        std::vector<int> points = total_points;
+        for(int i = 0; i < 8; ++i)
+        {
+            int randi = vk::Rand(0, points.size()-1);
+            pt1[i] = pts_prev_norm_[points[randi]];
+            pt2[i] = pts_next_norm_[points[randi]];
+
+            points[randi] = points.back();
+            points.pop_back();
+        }
+
+        cv::Mat H_temp = runDLT(pt1, pt2, T1, T2);
+        cv::Mat H_temp_inv = H_temp.inv();
+
+        int inliers_count = 0;
+        cv::Mat inliners_temp = cv::Mat::zeros(N, 1, CV_8UC1);
+        inliners_arr = inliners_temp.ptr<char>(0);
+        for(int n = 0; n < N; ++n)
+        {
+            float error1 = transferError(pts_prev_[n], pts_next_[n], H_temp.ptr<float>(0));
+            float error2 = transferError(pts_next_[n], pts_prev_[n], H_temp_inv.ptr<float>(0));
+
+            const float error = error1+error2;
+
+            if(error < threshold)
+            {
+                inliners_arr[n] = 1;
+                inliers_count++;
+            }
+
+        }
+
+        if(inliers_count > max_inliners)
+        {
+            max_inliners = inliers_count;
+            inliners = inliners_temp.clone();
+
+            if (adaptive)
+            {
+                double ratio = VK_MAX(inliers_count*1.0 / N, 0.5);
+                niters = -2.0 / log(1 - pow(ratio, 8));
+            }
+        }
+
+    }//! iterations
+
+    pt1.clear();
+    pt2.clear();
+    inliners_arr = inliners.ptr<char>(0);
+    for(int n = 0; n < N; ++n)
+    {
+        if(inliners_arr[n] != 1)
+        {
+            continue;
+        }
+
+        pt1.push_back(pts_prev_norm_[n]);
+        pt2.push_back(pts_next_norm_[n]);
+    }
+
+    return runDLT(pt1, pt2, T1, T2);
 }
 
 }//! vk

@@ -25,6 +25,8 @@ public:
 
     cv::Mat runDLT(const std::vector<cv::Point2f>& pts_prev, const std::vector<cv::Point2f>& pts_next, cv::Mat& T1, cv::Mat& T2);
 
+    cv::Mat runRANSAC(const std::vector<cv::Point2f>& pts_prev, const std::vector<cv::Point2f>& pts_next, cv::Mat& T1, cv::Mat& T2, cv::Mat& inliners);
+
 private:
     const HomographyType run_type_;
     std::vector<cv::Point2f> pts_prev_;
