@@ -308,18 +308,4 @@ void Normalize(const std::vector<cv::Point2f>& points, std::vector<cv::Point2f>&
     T.at<float>(1,2) = -mean.y*scale_y;
 }
 
-inline float transferError(const cv::Point2f& p1, const cv::Point2f& p2, const float* H12)
-{
-    const float u1 = p1.x;
-    const float v1 = p1.y;
-    const float u2 = p2.x;
-    const float v2 = p2.y;
-
-    const float w1in2 = H12[6] * u1 + H12[7] * v1 + H12[8];
-    const float u1in2 = (H12[0] * u1 + H12[1] * v1 + H12[2]) / w1in2;
-    const float v1in2 = (H12[3] * u1 + H12[4] * v1 + H12[5]) / w1in2;
-
-    return (u2 - u1in2)*(u2 - u1in2) + (v2 - v1in2)*(v2 - v1in2);
-}
-
 }//! vk

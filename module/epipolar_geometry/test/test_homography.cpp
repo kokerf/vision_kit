@@ -205,6 +205,8 @@ int drawHomographyMatches(const cv::Mat& img_prev, const cv::Mat& img_next, cv::
         cv::circle(img_match, p2+offset, 3, color, 1, cv::LINE_AA);
         cv::line(img_match, p1, p2+offset, color);
     }
+    if(count != 0)
+        error /= count;
 
     return count;
 }

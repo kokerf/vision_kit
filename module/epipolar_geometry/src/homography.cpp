@@ -16,7 +16,7 @@ cv::Mat findHomographyMat(const std::vector<cv::Point2f>& pts_prev, const std::v
 
 Homography::Homography(const std::vector<cv::Point2f>& pts_prev, const std::vector<cv::Point2f>& pts_next,
     HomographyType type, float sigma, int max_iterations) :
-    pts_prev_(pts_prev), pts_next_(pts_next), run_type_(type), sigma2_(sigma*sigma), max_iterations_(max_iterations)
+    run_type_(type), pts_prev_(pts_prev), pts_next_(pts_next), sigma2_(sigma*sigma), max_iterations_(max_iterations)
 {
     assert(pts_prev.size() == pts_next.size());
     Normalize(pts_prev, pts_prev_norm_, T1_);
@@ -40,7 +40,7 @@ cv::Mat Homography::slove()
     switch(run_type_)
     {
     case HM_DLT: H_ = runDLT(pts_prev_norm_, pts_next_norm_, T1_, T2_); break;
-    case HM_RANSAC: H_ = runRANSAC(pts_prev_norm_, pts_next_norm_, T1_, T2_, cv::Mat()); break;
+    case HM_RANSAC: H_ = runRANSAC(pts_prev_norm_, pts_next_norm_, T1_, T2_, inliners_); break;
     default: break;
     }
 
@@ -50,7 +50,7 @@ cv::Mat Homography::slove()
 cv::Mat Homography::runDLT(const std::vector<cv::Point2f>& pts_prev, const std::vector<cv::Point2f>& pts_next, cv::Mat& T1, cv::Mat& T2)
 {
     const int N = pts_prev.size();
-    assert(N >= 8);
+    assert(N >= 4);
 
     cv::Mat A(2*N, 9, CV_32F);
     for(int i = 0; i < N; ++i)
@@ -99,7 +99,7 @@ cv::Mat Homography::runDLT(const std::vector<cv::Point2f>& pts_prev, const std::
 cv::Mat Homography::runRANSAC(const std::vector<cv::Point2f>& pts_prev, const std::vector<cv::Point2f>& pts_next, cv::Mat& T1, cv::Mat& T2, cv::Mat& inliners)
 {
     const int N = pts_prev.size();
-    const int modelPoints = 8;
+    const int modelPoints = 4;
     assert(N >= modelPoints);
 
     const double threshold = 5.991*sigma2_;
@@ -122,8 +122,6 @@ cv::Mat Homography::runRANSAC(const std::vector<cv::Point2f>& pts_prev, const st
 
         cv::Mat H_temp = runDLT(pt1, pt2, T1, T2);
         cv::Mat H_temp_inv = H_temp.inv();
-        float* H12 = H_temp.ptr<float>(0);
-        float* H21 = H_temp_inv.ptr<float>(0);
 
         int inliers_count = 0;
         cv::Mat inliners_temp = cv::Mat::zeros(N, 1, CV_8UC1);

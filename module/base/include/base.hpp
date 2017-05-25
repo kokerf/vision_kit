@@ -102,7 +102,19 @@ void Normalize(const std::vector<cv::Point2f>& points, std::vector<cv::Point2f>&
  * @param  H12 [3*3 arrary, homograph maxtrix from the first image to the second image]
  * @return     [transfer error]
  */
-extern inline float transferError(const cv::Point2f& p1, const cv::Point2f& p2, const float* H12);
+inline float transferError(const cv::Point2f& p1, const cv::Point2f& p2, const float* H12)
+{
+    const float u1 = p1.x;
+    const float v1 = p1.y;
+    const float u2 = p2.x;
+    const float v2 = p2.y;
+
+    const float w1in2 = H12[6] * u1 + H12[7] * v1 + H12[8];
+    const float u1in2 = (H12[0] * u1 + H12[1] * v1 + H12[2]) / w1in2;
+    const float v1in2 = (H12[3] * u1 + H12[4] * v1 + H12[5]) / w1in2;
+
+    return (u2 - u1in2)*(u2 - u1in2) + (v2 - v1in2)*(v2 - v1in2);
+}
 
 }//! vk
 

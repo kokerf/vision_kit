@@ -136,7 +136,7 @@ void OpticalFlow::trackPoint(const cv::Point2f& pt_prev, cv::Point2f& pt_next, c
     const int half_win_height = win_size_.height/2;
     const int half_win_width = win_size_.width/2;
 
-    cv::Point2f q = pt_prev / (1 << max_level + 1);
+    cv::Point2f q = pt_prev / (1 << (max_level + 1));
     for(int l = max_level; l >= 0; l--)
     {
 #ifdef GET_TIME
@@ -176,7 +176,7 @@ void OpticalFlow::trackPoint(const cv::Point2f& pt_prev, cv::Point2f& pt_next, c
         float w00 = (1.0f - subpix_x)*(1.0f - subpix_y);
         float w01 = (1.0f - subpix_x)*subpix_y;
         float w10 = subpix_x*(1.0f - subpix_y);
-        float w11 = 1.0f - w00 - w01 - w10;
+        //float w11 = 1.0f - w00 - w01 - w10;
 
 #ifdef USE_INT
         //! cite from OpenCV
@@ -270,7 +270,7 @@ void OpticalFlow::trackPoint(const cv::Point2f& pt_prev, cv::Point2f& pt_next, c
             w00 = (1.0f - subpix_x)*(1.0f - subpix_y);
             w01 = (1.0f - subpix_x)*subpix_y;
             w10 = subpix_x*(1.0f - subpix_y);
-            w11 = 1.0f - w00 - w01 - w10;
+            //w11 = 1.0f - w00 - w01 - w10;
 #ifdef USE_INT
             iw00 = roundl(w00*(1 << W_BITS));
             iw01 = roundl(w01*(1 << W_BITS));

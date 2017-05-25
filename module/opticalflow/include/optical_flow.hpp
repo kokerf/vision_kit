@@ -48,8 +48,8 @@ public:
 private:
     cv::Size win_size_;
     int max_level_;
-    double criteria_;
     int max_iters_;
+    double criteria_;
     int win_eara_;
     double EPS_S2_;
 

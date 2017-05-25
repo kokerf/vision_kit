@@ -20,7 +20,7 @@ cv::Mat findFundamentalMat(const std::vector<cv::Point2f>& pts_prev, const std::
 
 Fundamental::Fundamental(const std::vector<cv::Point2f>& pts_prev, const std::vector<cv::Point2f>& pts_next,
     FundamentalType type, float sigma, int max_iterations):
-    pts_prev_(pts_prev), pts_next_(pts_next), run_type_(type), sigma2_(sigma*sigma), max_iterations_(max_iterations)
+    run_type_(type), pts_prev_(pts_prev), pts_next_(pts_next), sigma2_(sigma*sigma), max_iterations_(max_iterations)
 {
     assert(pts_prev.size() == pts_next.size());
     Normalize(pts_prev, pts_prev_norm_, T1_);

@@ -151,7 +151,7 @@ void getGoodMatches(const cv::Mat& src, const cv::Mat& dest, std::vector<cv::Key
     matches.clear();
     for (int i = 0; i < descriptors0.rows; i++)
     {
-        if (temp_matches[i].distance < 3 * min_dist)
+        if (temp_matches[i].distance < 5 * min_dist)
         {
             matches.push_back(temp_matches[i]);
         }
