@@ -20,6 +20,27 @@ inline double Rand(double min, double max)
 inline int Rand(int min, int max)
 { return (((double)rand()/((double)RAND_MAX + 1.0)) * (max - min + 1)) + min;}
 
+inline void sampleNpoints(const int& min, const int& max, const int& num, int* out)
+{
+    int* store = new int[num];
+    for(int i = 0; i < num; ++i)
+    {
+        const int maxi = max - i;
+        out[i] = vk::Rand(min, maxi);
+        store[i] = maxi;
+
+        for(int j = 0; j < i; j++)
+        {
+            if(out[i] == out[j])
+            {
+                out[i] = store[j];
+                store[j] = maxi;
+            }
+        }
+    }
+    delete[] store;
+}
+
 }//! vk
 
 #endif

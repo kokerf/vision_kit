@@ -12,16 +12,16 @@ enum FundamentalType {
     FM_RANSAC = 4,
 };
 /**
- * [findFundamentalMat find fundamental matrix by matched points]
- * @param  pts_prev   [points in the first image]
- * @param  pts_next   [points in the second image]
- * @param  type       [type of algrithm]
- * @param  sigma      [sigma of Gaussian distribution of points]
- * @param  iterations [iteration times fot RANSAC. If set to -1, use self-adaptive iteration]
- * @return            [fundamental matrix]
+ * [findFundamentalMat description]
+ * @param  pts_prev       [points in the first image]
+ * @param  pts_next       [points in the second image]
+ * @param  type           [type of algrithm]
+ * @param  sigma          [sigma of Gaussian distribution of points]
+ * @param  max_iterations [max iteration times fot RANSAC]
+ * @return                [3*3 fundamental matrix]
  */
 cv::Mat findFundamentalMat(const std::vector<cv::Point2f>& pts_prev, const std::vector<cv::Point2f>& pts_next,
-    FundamentalType type=FM_8POINT, float sigma=1, int iterations=-1);
+    FundamentalType type=FM_8POINT, float sigma=1, int max_iterations=2000);
 
 /**
  * Fundametal matrix to find
@@ -30,7 +30,7 @@ class Fundamental
 {
 public:
     Fundamental(const std::vector<cv::Point2f>& pts_prev, const std::vector<cv::Point2f>& pts_next,
-        FundamentalType type=FM_RANSAC, float sigma=1, int iterations=-1);
+        FundamentalType type=FM_RANSAC, float sigma=1, int max_iterations=2000);
 
     ~Fundamental();
 
@@ -89,7 +89,7 @@ private:
     cv::Mat T1_, T2_;
     cv::Mat F_;
     float sigma2_;
-    int iterations_;
+    int max_iterations_;
 };
 
 

@@ -10,10 +10,14 @@
 #include <opencv2/features2d/features2d.hpp>
 #endif
 
+#include "base.hpp"
 #include "homography.hpp"
 
 void getGoodMatches(const cv::Mat& src, const cv::Mat& dest, std::vector<cv::KeyPoint>& kps0, std::vector<cv::KeyPoint>& kps1,
     std::vector<cv::DMatch>& matches);
+
+int drawHomographyMatches(const cv::Mat& img_prev, const cv::Mat& img_next, cv::Mat& img_match, const cv::Mat& homography,
+    const std::vector<cv::Point2f>& pts_prev, const std::vector<cv::Point2f>& pts_next, double& error);
 
 int main(int argc, char const *argv[])
 {
@@ -60,7 +64,8 @@ int main(int argc, char const *argv[])
 
     //! by OpenCV
     double cv_start_time = (double)cv::getTickCount();
-    cv::Mat cv_H = cv::findHomography(points0, points1, cv::RANSAC);
+    cv::Mat mask;
+    cv::Mat cv_H = cv::findHomography(points0, points1, cv::RANSAC, 5.991/2);// threshold = (5.991/2)^2 = 8.97
     double cv_time = ((double)cv::getTickCount() - cv_start_time) / cv::getTickFrequency();
     if (cv_H.empty())
     {
@@ -74,21 +79,23 @@ int main(int argc, char const *argv[])
 
     //! by vk
     double vk_start_time = (double)cv::getTickCount();
-    cv::Mat vk_F = vk::findHomographyMat(points0, points1, vk::HM_RANSAC, 1.0, -1);
+    cv::Mat vk_H = vk::findHomographyMat(points0, points1, vk::HM_RANSAC, 1.224);// threshold = 5.991*1.224^2=8.98
     double vk_time = ((double)cv::getTickCount() - vk_start_time) / cv::getTickFrequency();
-    if (vk_F.empty())
+    if (vk_H.empty())
     {
         std::cout << "Error in finding homography matrix by visionkit!" << std::endl;
         return -1;
     }
     else
     {
-        std::cout << "Fund homography matrix:\n" << vk_F << std::endl;
+        std::cout << "Fund homography matrix:\n" << vk_H << std::endl;
     }
 
+    cv::Mat cv_img_matches;
+    cv::Mat vk_img_matches;
     double cv_error = 0, vk_error = 0;
-    int cv_count = 0;
-    int vk_count = 0;
+    int cv_count = drawHomographyMatches(image0, image1, cv_img_matches, cv_H, points0, points1, cv_error);
+    int vk_count = drawHomographyMatches(image0, image1, vk_img_matches, vk_H, points0, points1, vk_error);
     std::cout << "Total points:" << points0.size() << std::endl;
     std::cout << "CV Time: " << cv_time << " Error:" << cv_error << " Inliers:" << cv_count << std::endl;
     std::cout << "VK Time: " << vk_time << " Error:" << vk_error << " Inliers:" << vk_count << std::endl;
@@ -99,6 +106,8 @@ int main(int argc, char const *argv[])
     drawMatches(image0, keypoints0, image1, keypoints1, matches, img_matches, cv::Scalar::all(-1), cv::Scalar::all(-1));
 
     cv::imshow("Good Matches", img_matches);
+    cv::imshow("CV Homography Matches", cv_img_matches);
+    cv::imshow("VK Homography Matches", vk_img_matches);
 
     cv::waitKey(0);
     return 0;
@@ -149,4 +158,53 @@ void getGoodMatches(const cv::Mat& src, const cv::Mat& dest, std::vector<cv::Key
     }
 
     std::sort(matches.begin(), matches.end());
+}
+
+int drawHomographyMatches(const cv::Mat& img_prev, const cv::Mat& img_next, cv::Mat& img_match, const cv::Mat& homography,
+    const std::vector<cv::Point2f>& pts_prev, const std::vector<cv::Point2f>& pts_next, double& error)
+{
+    const int N = pts_prev.size();
+    if(N != pts_next.size())
+        return -1;
+
+    const int cols = img_prev.cols;
+    img_match = cv::Mat(img_prev.rows, img_prev.cols*2, img_prev.type());
+    img_prev.copyTo(img_match.colRange(0, cols));
+    img_next.copyTo(img_match.colRange(cols, 2*cols));
+    cv::Point2f offset(cols, 0);
+
+    cv::Mat H = homography.clone();
+    if(H.type() != CV_32FC1)
+    {
+        H.convertTo(H, CV_32FC1);
+    }
+    const cv::Mat Hinv = H.inv();
+    const float threshold = 5.991;//! sigma = 1
+    int count = 0;
+    error = 0;
+
+    for(int n = 0; n < N; ++n)
+    {
+        const cv::Point2f& p1 = pts_prev[n];
+        const cv::Point2f& p2 = pts_next[n];
+
+        const double error1 = vk::transferError(p1, p2, H.ptr<float>(0));
+        const double error2 = vk::transferError(p2, p1, Hinv.ptr<float>(0));
+
+        const double transfer_error = error1 + error2;
+        if(transfer_error < threshold)
+        {
+            count++;
+            error+=transfer_error;
+        }
+        else
+            continue;
+
+        cv::Scalar color(255.0*rand()/RAND_MAX, 255.0*rand()/RAND_MAX, 255.0*rand()/RAND_MAX);
+        cv::circle(img_match, p1, 3, color, 1, cv::LINE_AA);
+        cv::circle(img_match, p2+offset, 3, color, 1, cv::LINE_AA);
+        cv::line(img_match, p1, p2+offset, color);
+    }
+
+    return count;
 }

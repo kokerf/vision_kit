@@ -7,16 +7,16 @@
 namespace vk {
 
 cv::Mat findHomographyMat(const std::vector<cv::Point2f>& pts_prev, const std::vector<cv::Point2f>& pts_next,
-    HomographyType type, float sigma, int iterations)
+    HomographyType type, float sigma, int max_iterations)
 {
-    Homography homography(pts_prev, pts_next, type, sigma, iterations);
+    Homography homography(pts_prev, pts_next, type, sigma, max_iterations);
 
     return homography.slove();
 }
 
 Homography::Homography(const std::vector<cv::Point2f>& pts_prev, const std::vector<cv::Point2f>& pts_next,
-    HomographyType type, float sigma, int iterations) :
-    pts_prev_(pts_prev), pts_next_(pts_next), run_type_(type), sigma2_(sigma*sigma), iterations_(iterations)
+    HomographyType type, float sigma, int max_iterations) :
+    pts_prev_(pts_prev), pts_next_(pts_next), run_type_(type), sigma2_(sigma*sigma), max_iterations_(max_iterations)
 {
     assert(pts_prev.size() == pts_next.size());
     Normalize(pts_prev, pts_prev_norm_, T1_);
@@ -99,44 +99,31 @@ cv::Mat Homography::runDLT(const std::vector<cv::Point2f>& pts_prev, const std::
 cv::Mat Homography::runRANSAC(const std::vector<cv::Point2f>& pts_prev, const std::vector<cv::Point2f>& pts_next, cv::Mat& T1, cv::Mat& T2, cv::Mat& inliners)
 {
     const int N = pts_prev.size();
-    assert(N >= 8);
+    const int modelPoints = 8;
+    assert(N >= modelPoints);
 
     const double threshold = 5.991*sigma2_;
+    const int max_iters = VK_MIN(VK_MAX(max_iterations_, 1), 2000);
 
-    bool adaptive = true;
-    int niters = 1000;
-    if(iterations_ != -1)
-    {
-        adaptive = false;
-        niters = VK_MIN(niters, iterations_);
-        niters = VK_MIN(niters, 20);//! min is 20
-    }
-
-    std::vector<int> total_points;
-    for(int i = 0; i < N; ++i)
-    {
-        total_points.push_back(i);
-    }
-
-    std::vector<cv::Point2f> pt1(8);
-    std::vector<cv::Point2f> pt2(8);
-    int max_inliners = 0;
+    std::vector<cv::Point2f> pt1(modelPoints);
+    std::vector<cv::Point2f> pt2(modelPoints);
     char* inliners_arr;
+    int max_inliners = 0;
+    int niters = max_iters;
+    int* select_points = new int[N];
     for(int iter = 0; iter < niters; iter++)
     {
-        std::vector<int> points = total_points;
-        for(int i = 0; i < 8; ++i)
+        sampleNpoints(0, N-1, modelPoints, select_points);
+        for(int i = 0; i < modelPoints; ++i)
         {
-            int randi = vk::Rand(0, points.size()-1);
-            pt1[i] = pts_prev_norm_[points[randi]];
-            pt2[i] = pts_next_norm_[points[randi]];
-
-            points[randi] = points.back();
-            points.pop_back();
+            pt1[i] = pts_prev_norm_[select_points[i]];
+            pt2[i] = pts_next_norm_[select_points[i]];
         }
 
         cv::Mat H_temp = runDLT(pt1, pt2, T1, T2);
         cv::Mat H_temp_inv = H_temp.inv();
+        float* H12 = H_temp.ptr<float>(0);
+        float* H21 = H_temp_inv.ptr<float>(0);
 
         int inliers_count = 0;
         cv::Mat inliners_temp = cv::Mat::zeros(N, 1, CV_8UC1);
@@ -153,7 +140,6 @@ cv::Mat Homography::runRANSAC(const std::vector<cv::Point2f>& pts_prev, const st
                 inliners_arr[n] = 1;
                 inliers_count++;
             }
-
         }
 
         if(inliers_count > max_inliners)
@@ -161,14 +147,24 @@ cv::Mat Homography::runRANSAC(const std::vector<cv::Point2f>& pts_prev, const st
             max_inliners = inliers_count;
             inliners = inliners_temp.clone();
 
-            if (adaptive)
+            if(inliers_count < N)
             {
-                double ratio = VK_MAX(inliers_count*1.0 / N, 0.5);
-                niters = -2.0 / log(1 - pow(ratio, 8));
+                //! N = log(1-p)/log(1-omega^s)
+                //! p = 99%
+                //! number of set: s = 8
+                //! omega = inlier points / total points
+                const double num = log(1-0.99);
+                const double omega = inliers_count*1.0 / N;
+                const double denom = log(1 - pow(omega, modelPoints));
+
+                niters = (denom >=0 || -num >= max_iters*(-denom)) ? max_iters : round(num / denom);
             }
+            else
+                break;
         }
 
     }//! iterations
+    delete[] select_points;
 
     pt1.clear();
     pt2.clear();

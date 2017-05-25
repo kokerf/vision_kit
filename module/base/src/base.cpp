@@ -17,7 +17,7 @@ int computePyramid(const cv::Mat& image, std::vector<cv::Mat>& image_pyramid, co
     image_pyramid.resize(level + 1);
 
     image_pyramid[0] = image.clone();
-    for (int i = 1; i <= level; ++i)
+    for(int i = 1; i <= level; ++i)
     {
         cv::Size size(round(image_pyramid[i - 1].cols / scale_factor), round(image_pyramid[i - 1].rows / scale_factor));
 

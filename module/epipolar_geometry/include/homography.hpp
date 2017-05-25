@@ -12,13 +12,13 @@ enum HomographyType {
 };
 
 cv::Mat findHomographyMat(const std::vector<cv::Point2f>& pts_prev, const std::vector<cv::Point2f>& pts_next,
-    HomographyType type, float sigma, int iterations);
+    HomographyType type, float sigma=1, int max_iterations=2000);
 
 class Homography
 {
 public:
     Homography(const std::vector<cv::Point2f>& pts_prev, const std::vector<cv::Point2f>& pts_next,
-        HomographyType type=HM_RANSAC, float sigma=1, int iterations=-1);
+        HomographyType type=HM_RANSAC, float sigma=1, int max_iterations=2000);
     ~Homography();
 
     cv::Mat slove();
@@ -38,7 +38,7 @@ private:
     cv::Mat T1_, T2_;
     cv::Mat H_;
     float sigma2_;
-    int iterations_;
+    int max_iterations_;
 };
 
 }//! vk

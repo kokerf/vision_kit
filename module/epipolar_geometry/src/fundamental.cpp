@@ -11,16 +11,16 @@
 namespace vk{
 
 cv::Mat findFundamentalMat(const std::vector<cv::Point2f>& pts_prev, const std::vector<cv::Point2f>& pts_next,
-    FundamentalType type, float sigma, int iterations)
+    FundamentalType type, float sigma, int max_iterations)
 {
-    Fundamental fundamental(pts_prev, pts_next, type, sigma, iterations);
+    Fundamental fundamental(pts_prev, pts_next, type, sigma, max_iterations);
 
     return fundamental.slove();
 }
 
 Fundamental::Fundamental(const std::vector<cv::Point2f>& pts_prev, const std::vector<cv::Point2f>& pts_next,
-    FundamentalType type, float sigma, int iterations):
-    pts_prev_(pts_prev), pts_next_(pts_next), run_type_(type), sigma2_(sigma*sigma), iterations_(iterations)
+    FundamentalType type, float sigma, int max_iterations):
+    pts_prev_(pts_prev), pts_next_(pts_next), run_type_(type), sigma2_(sigma*sigma), max_iterations_(max_iterations)
 {
     assert(pts_prev.size() == pts_next.size());
     Normalize(pts_prev, pts_prev_norm_, T1_);
@@ -109,19 +109,11 @@ cv::Mat Fundamental::run8points(const std::vector<cv::Point2f>& pts_prev, const 
 cv::Mat Fundamental::runRANSAC(const std::vector<cv::Point2f>& pts_prev, const std::vector<cv::Point2f>& pts_next, cv::Mat& T1, cv::Mat& T2, cv::Mat& inliners)
 {
     const int N = pts_prev.size();
-    assert(N >= 8);
+    const int modelPoints = 8;
+    assert(N >= modelPoints);
 
     const double threshold = 3.841*sigma2_;
-    //cv::Mat F_out;
-
-    bool adaptive = true;
-    int niters = 1000;
-    if(iterations_ != -1)
-    {
-        adaptive = false;
-        niters = VK_MIN(niters, iterations_);
-        niters = VK_MIN(niters, 20);
-    }
+    const int max_iters = VK_MIN(VK_MAX(max_iterations_, 1), 2000);
 
     std::vector<int> total_points;
     for(int i = 0; i < N; ++i)
@@ -129,14 +121,15 @@ cv::Mat Fundamental::runRANSAC(const std::vector<cv::Point2f>& pts_prev, const s
         total_points.push_back(i);
     }
 
-    std::vector<cv::Point2f> pt1(8);
-    std::vector<cv::Point2f> pt2(8);
-    int max_inliners = 0;
+    std::vector<cv::Point2f> pt1(modelPoints);
+    std::vector<cv::Point2f> pt2(modelPoints);
     char* inliners_arr;
+    int max_inliners = 0;
+    int niters = max_iters;
     for(int iter = 0; iter < niters; iter++)
     {
         std::vector<int> points = total_points;
-        for(int i = 0; i < 8; ++i)
+        for(int i = 0; i < modelPoints; ++i)
         {
             int randi = vk::Rand(0, points.size()-1);
             pt1[i] = pts_prev_norm_[points[randi]];
@@ -172,11 +165,20 @@ cv::Mat Fundamental::runRANSAC(const std::vector<cv::Point2f>& pts_prev, const s
             max_inliners = inliers_count;
             inliners = inliners_temp.clone();
 
-            if (adaptive)
-            {
-                double ratio = VK_MAX(inliers_count*1.0 / N, 0.5);
-                niters = -2.0 / log(1 - pow(ratio, 8));
-            }
+           if(inliers_count < N)
+           {
+               //! N = log(1-p)/log(1-omega^s)
+               //! p = 99%
+               //! number of set: s = 8
+               //! omega = inlier points / total points
+               const double num = log(1-0.99);
+               const double omega = inliers_count*1.0 / N;
+               const double denom = log(1 - pow(omega, modelPoints));
+
+               niters = (denom >=0 || -num >= max_iters*(-denom)) ? max_iters : round(num / denom);
+           }
+           else
+               break;
         }
 
     }//! iterations

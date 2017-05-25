@@ -95,6 +95,13 @@ inline float interpolateMat_8u(const cv::Mat& mat, const float u, const float v)
  */
 void Normalize(const std::vector<cv::Point2f>& points, std::vector<cv::Point2f>& points_norm, cv::Mat& T);
 
+/**
+ * [transferError compute transfer error]
+ * @param  p1  [point in the first image]
+ * @param  p2  [point in the second image]
+ * @param  H12 [3*3 arrary, homograph maxtrix from the first image to the second image]
+ * @return     [transfer error]
+ */
 extern inline float transferError(const cv::Point2f& p1, const cv::Point2f& p2, const float* H12);
 
 }//! vk

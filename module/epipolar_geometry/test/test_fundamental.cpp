@@ -77,7 +77,7 @@ int main(int argc, char const *argv[])
 
     //! by vk
     double vk_start_time = (double)cv::getTickCount();
-    cv::Mat vk_F = vk::findFundamentalMat(points0, points1, vk::FM_RANSAC, 1.0, -1);
+    cv::Mat vk_F = vk::findFundamentalMat(points0, points1, vk::FM_RANSAC, 1.0, 1000);
     double vk_time = ((double)cv::getTickCount() - vk_start_time) / cv::getTickFrequency();
     if (vk_F.empty())
     {
