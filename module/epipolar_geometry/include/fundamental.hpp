@@ -59,34 +59,38 @@ public:
 private:
 
 /**
- * [run8points 8-points algrothm]
+ * [run8points 8-point algrothm]
  * @param  pts_prev [normalized points in the first image]
  * @param  pts_next [normalized points in the second image]
- * @param  T1       [transform matrix by normalizing in the first image]
- * @param  T2       [transform matrix by normalizing in the second image]
- * @return          [3*3 fundamental matrix]
+ * @param  F        [3*3 fundamental matrix]
+ * @return          [1 if ok]
  */
-    cv::Mat run8points(const std::vector<cv::Point2f>& pts_prev, const std::vector<cv::Point2f>& pts_next, cv::Mat& T1, cv::Mat& T2);
+    int run8point(const std::vector<cv::Point2f>& pts_prev, const std::vector<cv::Point2f>& pts_next, cv::Mat& F);
+
+/**
+* [run7point 7-point algrothm]
+* @param  pts_prev [normalized points in the first image]
+* @param  pts_next [normalized points in the second image]
+* @param  F        [3*3n fundamental matrix, n=1 or 3]
+* @return          [n solution, 1 or 3]
+*/
+    int run7point(const std::vector<cv::Point2f>& pts_prev, const std::vector<cv::Point2f>& pts_next, cv::Mat& F);
 /**
  * [runRANSAC RANSCA for 8-points algrothm]
  * @param  pts_prev [normalized points in the first image]
  * @param  pts_next [normalized points in the second image]
- * @param  T1       [transform matrix by normalizing in the first image]
- * @param  T2       [transform matrix by normalizing in the second image]
+ * @param  F        [3*3 fundamental matrix]
  * @param  inliners [output inliners]
- * @return          [3*3 fundamental matrix]
+ * @return          [1 if ok]
  */
-    cv::Mat runRANSAC(const std::vector<cv::Point2f>& pts_prev, const std::vector<cv::Point2f>& pts_next, cv::Mat& T1, cv::Mat& T2, cv::Mat& inliners);
+    int runRANSAC(const std::vector<cv::Point2f>& pts_prev, const std::vector<cv::Point2f>& pts_next, cv::Mat& F, cv::Mat& inliners);
 
 private:
     const FundamentalType run_type_;
     std::vector<cv::Point2f> pts_prev_;
     std::vector<cv::Point2f> pts_next_;
-    std::vector<cv::Point2f> pts_prev_norm_;
-    std::vector<cv::Point2f> pts_next_norm_;
 
     cv::Mat inliners_;
-    cv::Mat T1_, T2_;
     cv::Mat F_;
     float sigma2_;
     int max_iterations_;
