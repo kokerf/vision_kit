@@ -54,7 +54,7 @@ int main(int argc, char const *argv[])
     //!  vk::computePyrLK
     //! ===========================
     double cv_start_time = (double)cv::getTickCount();
-    vk::computePyrLK(gray0, gray1, points_prev, points_next0, status0, errors0, cv::Size(21, 21), 3, 40, 0.001);
+    vk::computePyrLKParallel(gray0, gray1, points_prev, points_next0, status0, errors0, cv::Size(21, 21), 3, 40, 0.001);
     double cv_time = ((double)cv::getTickCount() - cv_start_time) / cv::getTickFrequency();
     cout << "vk::computePyrLK: " << cv_time <<endl;
 

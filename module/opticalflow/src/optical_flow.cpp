@@ -9,6 +9,11 @@
 
 namespace vk{
 
+#ifdef GET_TIME
+static double getTimes[5];
+static int32_t nTimes[5];
+#endif
+
 OpticalFlow::OpticalFlow(const cv::Size& win_size, const int level, const int times, const float eps):
     win_size_(win_size), max_level_(level), max_iters_(times), criteria_(eps)
 {
@@ -37,66 +42,76 @@ OpticalFlow::~OpticalFlow()
     pyr_grad_y_.clear();
 }
 
-void OpticalFlow::calcGradient()
+void OpticalFlow::calcGradientPyramid()
 {
-    const int n_levels = pyr_next_.size();//! levels contian 0 - level
+#ifdef GET_TIME
+    double start_time1 = (double)cv::getTickCount();
+#endif
+    //! calculate gradient for each level
+    pyr_grad_x_.resize(max_level_+1);
+    pyr_grad_y_.resize(max_level_+1);
+    for(int i = 0; i <= max_level_; i++)
+    {
+        calcGradient(pyr_prev_[i], pyr_grad_x_[i], pyr_grad_y_[i]);
+    }
+#ifdef GET_TIME
+    getTimes[1] += (double)(cv::getTickCount() - start_time1) / cv::getTickFrequency();
+    nTimes[1]++;
+#endif
+}
 
+void OpticalFlow::calcGradient(cv::Mat& img, cv::Mat& grad_x, cv::Mat& grad_y)
+{
     //! use sharr
     deriv_type Sharr_dx[9] = { -3, 0, 3, -10, 0, 10, -3, 0, 3};
     deriv_type Sharr_dy[9] = { -3, -10, -3, 0, 0, 0, 3, 10, 3};
 
-    pyr_grad_x_.resize(n_levels), pyr_grad_y_.resize(n_levels);
-    for(int i = 0; i < n_levels; ++i)
+    //! copy borders for image
+    cv::Mat img_extend;
+    makeBorders(img, img_extend, 1, 1);
+
+    grad_x = cv::Mat::zeros(img.size(), cv::DataType<deriv_type>::type);
+    grad_y = cv::Mat::zeros(img.size(), cv::DataType<deriv_type>::type);
+
+    int u,v;
+    const uint16_t src_cols = img.cols;
+    const uint16_t src_rows = img.rows;
+    for(int ir = 0; ir < src_rows; ++ir)
     {
-        cv::Mat& src = pyr_prev_[i];
-        cv::Mat& grad_x = pyr_grad_x_[i];
-        cv::Mat& grad_y = pyr_grad_y_[i];
-        //! copy borders for image
-        cv::Mat img_extend;
-        makeBorders(src, img_extend, 1, 1);
-
-        grad_x = cv::Mat::zeros(src.size(), cv::DataType<deriv_type>::type);
-        grad_y = cv::Mat::zeros(src.size(), cv::DataType<deriv_type>::type);
-
-        int u,v;
-        const uint16_t src_cols = src.cols;
-        const uint16_t src_rows = src.rows;
-        for(int ir = 0; ir < src_rows; ++ir)
+        v = ir + 1;
+        uint8_t* extd_ptr = img_extend.ptr<uint8_t>(v);
+        deriv_type* gx_ptr = grad_x.ptr<deriv_type>(ir);
+        deriv_type* gy_ptr = grad_y.ptr<deriv_type>(ir);
+        for(int ic = 0; ic < src_cols; ++ic)
         {
-            v = ir + 1;
-            uint8_t* extd_ptr = img_extend.ptr<uint8_t>(v);
-            deriv_type* gx_ptr = grad_x.ptr<deriv_type>(ir);
-            deriv_type* gy_ptr = grad_y.ptr<deriv_type>(ir);
-            for(int ic = 0; ic < src_cols; ++ic)
-            {
-                u = ic + 1;
+            u = ic + 1;
 
-                gx_ptr[ic] = Sharr_dx[0] * extd_ptr[u - 1 - src_cols]
-                            + Sharr_dx[1] * extd_ptr[u - src_cols]
-                            + Sharr_dx[2] * extd_ptr[u + 1 - src_cols]
-                            + Sharr_dx[3] * extd_ptr[u - 1]
-                            + Sharr_dx[4] * extd_ptr[u]
-                            + Sharr_dx[5] * extd_ptr[u + 1]
-                            + Sharr_dx[6] * extd_ptr[u - 1 + src_cols]
-                            + Sharr_dx[7] * extd_ptr[u + src_cols]
-                            + Sharr_dx[8] * extd_ptr[u + 1 + src_cols];
+            gx_ptr[ic] = Sharr_dx[0] * extd_ptr[u - 1 - src_cols]
+                        + Sharr_dx[1] * extd_ptr[u - src_cols]
+                        + Sharr_dx[2] * extd_ptr[u + 1 - src_cols]
+                        + Sharr_dx[3] * extd_ptr[u - 1]
+                        + Sharr_dx[4] * extd_ptr[u]
+                        + Sharr_dx[5] * extd_ptr[u + 1]
+                        + Sharr_dx[6] * extd_ptr[u - 1 + src_cols]
+                        + Sharr_dx[7] * extd_ptr[u + src_cols]
+                        + Sharr_dx[8] * extd_ptr[u + 1 + src_cols];
 
-                gy_ptr[ic] = Sharr_dy[0] * extd_ptr[u - 1 - src_cols]
-                            + Sharr_dy[1] * extd_ptr[u - src_cols]
-                            + Sharr_dy[2] * extd_ptr[u + 1 - src_cols]
-                            + Sharr_dy[3] * extd_ptr[u - 1]
-                            + Sharr_dy[4] * extd_ptr[u]
-                            + Sharr_dy[5] * extd_ptr[u + 1]
-                            + Sharr_dy[6] * extd_ptr[u - 1 + src_cols]
-                            + Sharr_dy[7] * extd_ptr[u + src_cols]
-                            + Sharr_dy[8] * extd_ptr[u + 1 + src_cols];
+            gy_ptr[ic] = Sharr_dy[0] * extd_ptr[u - 1 - src_cols]
+                        + Sharr_dy[1] * extd_ptr[u - src_cols]
+                        + Sharr_dy[2] * extd_ptr[u + 1 - src_cols]
+                        + Sharr_dy[3] * extd_ptr[u - 1]
+                        + Sharr_dy[4] * extd_ptr[u]
+                        + Sharr_dy[5] * extd_ptr[u + 1]
+                        + Sharr_dy[6] * extd_ptr[u - 1 + src_cols]
+                        + Sharr_dy[7] * extd_ptr[u + src_cols]
+                        + Sharr_dy[8] * extd_ptr[u + 1 + src_cols];
 #ifndef USE_INT
-                gx_ptr[ic] /= 32.0;
-                gy_ptr[ic] /= 32.0;
+            gx_ptr[ic] /= 32.0;
+            gy_ptr[ic] /= 32.0;
 #endif
-            }
         }
     }
+
 }
 
 void OpticalFlow::createPyramid(const cv::Mat& img_prev, const cv::Mat& img_next)
@@ -105,36 +120,41 @@ void OpticalFlow::createPyramid(const cv::Mat& img_prev, const cv::Mat& img_next
     double start_time0 = (double)cv::getTickCount();
 #endif
 
+    max_level_ = createPyramid(img_prev, img_next, pyr_prev_, pyr_next_, max_level_);
+
+#ifdef GET_TIME
+    getTimes[0] += (double)(cv::getTickCount() - start_time0) / cv::getTickFrequency();
+    nTimes[0]++;
+#endif
+}
+
+int OpticalFlow::createPyramid(const cv::Mat& img_prev, const cv::Mat& img_next, std::vector<cv::Mat>& pyr_prev, std::vector<cv::Mat>& pyr_next, const int level)
+{
     assert(img_prev.type() == CV_8UC1);
     assert(img_next.type() == CV_8UC1);
 
     //! compute Pyramid images
-    int max_level0 = computePyramid(img_prev, pyr_prev_, 2, max_level_);
-    int max_level1 = computePyramid(img_next, pyr_next_, 2, max_level_);
+    int max_level0 = computePyramid(img_prev, pyr_prev, 2, level);
+    int max_level1 = computePyramid(img_next, pyr_next, 2, level);
 
-    max_level_ = VK_MIN(max_level0, max_level1);
-    pyr_prev_.resize(max_level_+1);
-    pyr_next_.resize(max_level_+1);
+    int max_level = VK_MIN(max_level0, max_level1);
+    pyr_prev.resize(max_level +1);
+    pyr_next.resize(max_level +1);
 
-#ifdef GET_TIME
-    double start_time1 = (double)cv::getTickCount();
-#endif
-
-    //! calculate gradient for each level
-    calcGradient();
-
-#ifdef GET_TIME
-    getTimes[0] += (double)(start_time1-start_time0)/cv::getTickFrequency();
-    nTimes[0]++;
-    getTimes[1] += (double)(cv::getTickCount()-start_time0)/cv::getTickFrequency();
-    nTimes[1]++;
-#endif
+    return max_level;
+}
+void OpticalFlow::trackPoint(const cv::Point2f& pt_prev, cv::Point2f& pt_next, float& error, uchar& status)
+{
+    trackPoint(pyr_prev_, pyr_next_, pyr_grad_x_, pyr_grad_y_, pt_prev, pt_next, error, status, win_size_, EPS_S2_, max_iters_);
 }
 
-void OpticalFlow::trackPoint(const cv::Point2f& pt_prev, cv::Point2f& pt_next, const int max_level, float& error, uchar& status)
+void OpticalFlow::trackPoint(const std::vector<cv::Mat>& pyr_prev, const std::vector<cv::Mat>& pyr_next, const std::vector<cv::Mat>& pyr_grad_x, const std::vector<cv::Mat>& pyr_grad_y,
+    const cv::Point2f& pt_prev, cv::Point2f& pt_next, float& error, uchar& status, const cv::Size& win_size, const double EPS_S2, const int max_iters)
 {
-    const int half_win_height = win_size_.height/2;
-    const int half_win_width = win_size_.width/2;
+    const int max_level = pyr_prev.size()-1;
+    const int half_win_height = win_size.height/2;
+    const int half_win_width = win_size.width/2;
+    const int win_eara = win_size.height * win_size.width;
 
     cv::Point2f q = pt_prev / (1 << (max_level + 1));
     for(int l = max_level; l >= 0; l--)
@@ -146,17 +166,17 @@ void OpticalFlow::trackPoint(const cv::Point2f& pt_prev, cv::Point2f& pt_next, c
         q *= 2;
 
         //! get images in l-level
-        const cv::Mat& pyr_prev = pyr_prev_[l];
-        const cv::Mat& pyr_next = pyr_next_[l];
-        const cv::Mat& grad_x = pyr_grad_x_[l];
-        const cv::Mat& grad_y = pyr_grad_y_[l];
-        const int pyr_cols = pyr_prev.cols;
-        const int pyr_rows = pyr_prev.rows;
+        const cv::Mat& img_prev = pyr_prev[l];
+        const cv::Mat& img_next = pyr_next[l];
+        const cv::Mat& grad_x = pyr_grad_x[l];
+        const cv::Mat& grad_y = pyr_grad_y[l];
+        const int pyr_cols = img_prev.cols;
+        const int pyr_rows = img_prev.rows;
 
         //! point location in l-lewel
         cv::Point2f p = pt_prev / (1 << l);
         cv::Point2f win_start(p.x - half_win_width, p.y - half_win_height);
-        cv::Point2f win_end(win_start.x + win_size_.width, win_start.y + win_size_.height);
+        cv::Point2f win_end(win_start.x + win_size.width, win_start.y + win_size.height);
 
         //! check boundary of p's patch
         if(win_start.x < 0 || win_start.y < 0 || win_end.x > pyr_cols || win_end.y > pyr_rows)
@@ -188,9 +208,9 @@ void OpticalFlow::trackPoint(const cv::Point2f& pt_prev, cv::Point2f& pt_next, c
 #endif
 
         //! create spatial gradient matrix and previous patch of win_size_
-        cv::Mat prev_w = cv::Mat::zeros(win_size_, cv::DataType<gray_type>::type);
-        cv::Mat grad_xw = cv::Mat::zeros(win_size_, cv::DataType<deriv_type>::type);
-        cv::Mat grad_yw = cv::Mat::zeros(win_size_, cv::DataType<deriv_type>::type);
+        cv::Mat prev_w = cv::Mat::zeros(win_size, cv::DataType<gray_type>::type);
+        cv::Mat grad_xw = cv::Mat::zeros(win_size, cv::DataType<deriv_type>::type);
+        cv::Mat grad_yw = cv::Mat::zeros(win_size, cv::DataType<deriv_type>::type);
         gray_type* pTwi = prev_w.ptr<gray_type>(0);
         deriv_type* pGxw = grad_xw.ptr<deriv_type>(0);
         deriv_type* pGyw = grad_yw.ptr<deriv_type>(0);
@@ -199,13 +219,13 @@ void OpticalFlow::trackPoint(const cv::Point2f& pt_prev, cv::Point2f& pt_next, c
         float G00 = 0, G01 = 0, G11 = 0;
         int x_start = floor(win_start.x);
         int y_start = floor(win_start.y);
-        for(int yi = 0; yi < win_size_.height; ++yi)
+        for(int yi = 0; yi < win_size.height; ++yi)
         {
-            const uint8_t* pT = &pyr_prev.ptr<uint8_t>(yi+y_start)[x_start];
+            const uint8_t* pT = &img_prev.ptr<uint8_t>(yi+y_start)[x_start];
             const deriv_type* pGx = &grad_x.ptr<deriv_type>(yi+y_start)[x_start];
             const deriv_type* pGy = &grad_y.ptr<deriv_type>(yi+y_start)[x_start];
 
-            for(int xi = 0; xi < win_size_.width; ++xi, pGxw++, pGyw++, pTwi++)
+            for(int xi = 0; xi < win_size.width; ++xi, pGxw++, pGyw++, pTwi++)
             {
 #ifdef USE_INT
                 gray_type Ti = iw00*pT[xi] + iw01*pT[xi+pyr_cols] + iw10*pT[xi+1] + iw11*pT[xi+pyr_cols+1];
@@ -243,14 +263,14 @@ void OpticalFlow::trackPoint(const cv::Point2f& pt_prev, cv::Point2f& pt_next, c
         //! iteration
         cv::Point2f delta;
         int it = 0;
-        while(it++ < max_iters_)
+        while(it++ < max_iters)
         {
 
 #ifdef GET_TIME
             start_time = (double)cv::getTickCount();
 #endif
             win_start = cv::Point2f(q.x - half_win_width, q.y - half_win_height);
-            win_end = cv::Point2f(win_start.x + win_size_.width, win_start.y + win_size_.height);
+            win_end = cv::Point2f(win_start.x + win_size.width, win_start.y + win_size.height);
             //! check boundary of q's patch
             if(win_start.x < 0 || win_start.y < 0 || win_end.x > pyr_cols || win_end.y > pyr_rows)
             {
@@ -286,10 +306,10 @@ void OpticalFlow::trackPoint(const cv::Point2f& pt_prev, cv::Point2f& pt_next, c
             x_start = floor(win_start.x);
             y_start = floor(win_start.y);
             error = 0;
-            for(int yi = 0; yi < win_size_.height; ++yi)
+            for(int yi = 0; yi < win_size.height; ++yi)
             {
-                const uint8_t* pIw = &pyr_next.ptr<uint8_t>(yi+y_start)[x_start];
-                for(int xi = 0; xi < win_size_.width; ++xi, pGxw++, pGyw++, pTwi++)
+                const uint8_t* pIw = &img_next.ptr<uint8_t>(yi+y_start)[x_start];
+                for(int xi = 0; xi < win_size.width; ++xi, pGxw++, pGyw++, pTwi++)
                 {
 #ifdef USE_INT
                     gray_type Ii = iw00*pIw[xi] + iw01*pIw[xi+pyr_cols] + iw10*pIw[xi+1] + iw11*pIw[xi+pyr_cols+1];
@@ -308,7 +328,7 @@ void OpticalFlow::trackPoint(const cv::Point2f& pt_prev, cv::Point2f& pt_next, c
             }
 
 #ifdef USE_INT
-            error /= win_eara_ * FLT_SCALE;
+            error /= win_eara * FLT_SCALE;
             delta.x = 32*(G11 * b.x - G01 * b.y)/det;
             delta.y = 32*(-G01 * b.x + G00 * b.y)/det;
 #else
@@ -323,7 +343,7 @@ void OpticalFlow::trackPoint(const cv::Point2f& pt_prev, cv::Point2f& pt_next, c
                 break;
             }
             //! iteration termination
-            if(delta.x*delta.x + delta.y*delta.y < EPS_S2_)
+            if(delta.x*delta.x + delta.y*delta.y < EPS_S2)
             {
                 break;
             }
@@ -342,14 +362,14 @@ void OpticalFlow::trackPoint(const cv::Point2f& pt_prev, cv::Point2f& pt_next, c
     }//! end of levels
 }
 
-void computePyrLK(const cv::Mat& img_prev, const cv::Mat& img_next, std::vector<cv::Point2f>& points_prev, std::vector<cv::Point2f>& points_next,
+void computePyrLK(const cv::Mat& img_prev, const cv::Mat& img_next, std::vector<cv::Point2f>& pts_prev, std::vector<cv::Point2f>& pts_next,
     std::vector<uchar>& statuses, std::vector<float>& errors, const cv::Size& win_size, const int level, const int times, const float eps)
 {
 #ifdef GET_TIME
     double start_time = (double)cv::getTickCount();
 #endif
 
-    const int total_points = points_prev.size();
+    const int total_points = pts_prev.size();
     if(total_points < 1)
         return;
 
@@ -357,8 +377,10 @@ void computePyrLK(const cv::Mat& img_prev, const cv::Mat& img_next, std::vector<
 
     optical_flow.createPyramid(img_prev, img_next);
 
+    optical_flow.calcGradientPyramid();
+
     //! each points in img_prev to find a corresponding location in img_next
-    points_next.resize(total_points);
+    pts_next.resize(total_points);
     statuses.resize(total_points, false);
     errors.resize(total_points, -1);
     for(int i = 0; i < total_points; ++i)
@@ -366,37 +388,114 @@ void computePyrLK(const cv::Mat& img_prev, const cv::Mat& img_next, std::vector<
         cv::Point2f pt_next;
         float& error = errors[i];
         uchar status = false;
-        optical_flow.trackPoint(points_prev[i], pt_next, level, error, status);
+        optical_flow.trackPoint(pts_prev[i], pt_next, error, status);
 
         statuses[i] = status;
         if(status==1)
         {
-            points_next[i] = pt_next;
+            pts_next[i] = pt_next;
         }
         else
         {
-            points_next[i] = cv::Point2f();
+            pts_next[i] = cv::Point2f();
         }
 
     }//! iterator of points
 
 #ifdef GET_TIME
-    optical_flow.getTimes[4] += ((double)cv::getTickCount() - start_time) / cv::getTickFrequency();
-    optical_flow.nTimes[4]++;
+    getTimes[4] += ((double)cv::getTickCount() - start_time) / cv::getTickFrequency();
+    nTimes[4]++;
     std::cout << "================="
-    << "\n Total time: "     << optical_flow.getTimes[4]/optical_flow.nTimes[4]
-    << "\n create Pyramid: " << optical_flow.getTimes[0]
-                      << " " << optical_flow.getTimes[0]/optical_flow.nTimes[0]
-    << "\n calc  gradient: " << optical_flow.getTimes[1]
-                      << " " << optical_flow.getTimes[1]/optical_flow.nTimes[1]
-    << "\n prev   precess: " << optical_flow.getTimes[2]
-                             << " " << optical_flow.getTimes[2]/optical_flow.nTimes[2]
-    << "\n      iteration: " << optical_flow.getTimes[3]
-                             << " " << optical_flow.getTimes[3]/optical_flow.nTimes[3]
-    << "\n iter per point: " << optical_flow.nTimes[3]/total_points << " " << optical_flow.nTimes[3]/total_points/(level+1)
+    << "\n Total time: "     << getTimes[4]/nTimes[4]
+    << "\n create Pyramid: " << getTimes[0]
+                      << " " << getTimes[0]/nTimes[0]
+    << "\n calc  gradient: " << getTimes[1]
+                      << " " << getTimes[1]/nTimes[1]
+    << "\n prev   precess: " << getTimes[2]
+                             << " " << getTimes[2]/nTimes[2]
+    << "\n      iteration: " << getTimes[3]
+                             << " " << getTimes[3]/nTimes[3]
+    << "\n iter per point: " << nTimes[3]/total_points << " " << nTimes[3]/total_points/(level+1)
     << "\n=================" << std::endl;
 #endif
 
+}
+
+void computePyrLKParallel(const cv::Mat& img_prev, const cv::Mat& img_next, std::vector<cv::Point2f>& pts_prev, std::vector<cv::Point2f>& pts_next,
+    std::vector<uchar>& statuses, std::vector<float>& errors, const cv::Size& win_size, const int level, const int times, const float eps)
+{
+#ifdef GET_TIME
+    double start_time = (double)cv::getTickCount();
+#endif
+
+    const int total_points = pts_prev.size();
+    if(total_points < 1)
+        return;
+    
+    std::vector<cv::Mat> pyr_prev, pyr_next;
+    std::vector<cv::Mat> pyr_grad_x, pyr_grad_y;
+
+    int max_level = OpticalFlow::createPyramid(img_prev, img_next, pyr_prev, pyr_next, level);
+
+    pyr_grad_x.resize(max_level+1);
+    pyr_grad_y.resize(max_level+1);
+    for(int i = 0; i <= max_level; i++)
+    {
+        OpticalFlow::calcGradient(pyr_prev[i], pyr_grad_x[i], pyr_grad_y[i]);
+    }
+
+    pts_next.resize(total_points);
+    errors.resize(total_points);
+    statuses.resize(total_points, false);
+
+    cv::parallel_for_(cv::Range(0, total_points), LKTrackerParallel::LKTrackerParallel(pyr_prev, pyr_next, pyr_grad_x, pyr_grad_y, pts_prev, pts_next, errors, statuses, win_size, max_level, eps, times));
+
+#ifdef GET_TIME
+    getTimes[4] += ((double)cv::getTickCount() - start_time) / cv::getTickFrequency();
+    nTimes[4]++;
+    std::cout << "================="
+        << "\n Total time: " << getTimes[4] / nTimes[4]
+        << "\n create Pyramid: " << getTimes[0]
+        << " " << getTimes[0] / nTimes[0]
+        << "\n calc  gradient: " << getTimes[1]
+        << " " << getTimes[1] / nTimes[1]
+        << "\n prev   precess: " << getTimes[2]
+        << " " << getTimes[2] / nTimes[2]
+        << "\n      iteration: " << getTimes[3]
+        << " " << getTimes[3] / nTimes[3]
+        << "\n iter per point: " << nTimes[3] / total_points << " " << nTimes[3] / total_points / (level + 1)
+        << "\n=================" << std::endl;
+#endif
+
+}
+
+LKTrackerParallel::LKTrackerParallel(const std::vector<cv::Mat>& pyr_prev, const std::vector<cv::Mat>& pyr_next,
+    const std::vector<cv::Mat>& pyr_grad_x, const std::vector<cv::Mat>& pyr_grad_y,
+    const std::vector<cv::Point2f>& pts_prev, std::vector<cv::Point2f>& pts_next, std::vector<float>& error, std::vector<uchar>& status, cv::Size win_size, int max_level, double criteria, int times):
+    pyr_prev_iter_(&pyr_prev), pyr_next_iter_(&pyr_next), pyr_grad_x_iter_(&pyr_grad_x), pyr_grad_y_iter_(&pyr_grad_y), pts_prev_iter_(&pts_prev), pts_next_iter_(&pts_next),
+    error_(&error), status_(&status)
+{
+
+    win_size_ = win_size;
+    max_level_ = max_level;
+    EPS_S2_ = criteria*criteria;
+    iter_times_ = times;
+}
+
+void LKTrackerParallel::operator()(const cv::Range& range) const
+{
+    for(int ptidx = range.start; ptidx < range.end; ptidx++)
+    {
+        (*status_)[ptidx] = false;
+
+        OpticalFlow::trackPoint(*pyr_prev_iter_, *pyr_next_iter_, *pyr_grad_x_iter_, *pyr_grad_y_iter_, (*pts_prev_iter_)[ptidx], (*pts_next_iter_)[ptidx],
+            (*error_)[ptidx], (*status_)[ptidx], win_size_, EPS_S2_, iter_times_);
+
+        if((*status_)[ptidx] != 1)
+        {
+            (*pts_next_iter_)[ptidx] = cv::Point2f();
+        }
+    }
 }
 
 }//! vk
