@@ -8,9 +8,9 @@ endif()
 message("Build type: " ${CMAKE_BUILD_TYPE})
 
 if( CMAKE_BUILD_TYPE MATCHES "Debug" )
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}  -Wall -g -march=native")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}  -Wall -g -march=native -fopenmp")
 else( CMAKE_BUILD_TYPE MATCHES "Release" )
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}  -Wall -O3 -march=native")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}  -Wall -O3 -march=native  -fopenmp")
 endif( CMAKE_BUILD_TYPE MATCHES "Debug" )
 
 set(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin)

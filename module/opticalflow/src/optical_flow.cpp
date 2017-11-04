@@ -3,6 +3,10 @@
 #include <cmath>
 #include <stdint.h>
 #include <assert.h>
+#include <omp.h>
+#ifndef _OPENMP
+#pragma warning("OpenMP not supported")
+#endif
 
 #include "optical_flow.hpp"
 #include "base.hpp"
@@ -361,6 +365,8 @@ void computePyrLK(const cv::Mat& img_prev, const cv::Mat& img_next, std::vector<
     points_next.resize(total_points);
     statuses.resize(total_points, false);
     errors.resize(total_points, -1);
+
+#pragma omp parallel for
     for(int i = 0; i < total_points; ++i)
     {
         cv::Point2f pt_next;
