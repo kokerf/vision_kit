@@ -1,0 +1,46 @@
+#ifndef _ALIGNMENT_HPP_
+#define _ALIGNMENT_HPP_
+
+#include <opencv2/core/core.hpp>
+
+namespace vk{
+
+/**
+ *  Alignment
+ */
+class Alignment
+{
+public:
+    /**
+     * [align2D to align a pitch to another image]
+     * @param  cur_img         [destination image]
+     * @param  ref_patch       [align path of templet image]
+     * @param  ref_patch_gx    [gradient of ref_patch in x]
+     * @param  ref_patch_gy    [gradient of ref_patch in y]
+     * @param  cur_px_estimate [centre of the patch found in cur_img]
+     * @param  MAX_ITER        [Maximum iteration count]
+     * @param  EPS             [Threshold value for termination criteria]
+     * @return                 [return true if found]
+     */
+    static bool align2D(const cv::Mat& cur_img, const cv::Mat& ref_patch, const cv::Mat& ref_patch_gx, const cv::Mat& ref_patch_gy,
+        cv::Point2f& cur_px_estimate, const int MAX_ITER = 30, const float EPS = 1E-2f);
+
+    /**
+    * [getPatch get patch from image]
+    * @param  src_img         [source image]
+    * @param  dst_img         [patch from source image]
+    * @param  centre          [centre of the patch in source image]
+    * @param  size            [patch size to extract]
+    * @param  affine          [warp of patch, based on centre of patch]
+    * @return                 [void]
+    */
+    static void getPatch(const cv::Mat &src_img, cv::Mat &dst_img, const cv::Point2f &centre, const int size = 8, const cv::Mat &affine = cv::Mat::eye(2, 2, CV_32FC1));
+
+};
+
+
+
+
+}//! vk
+
+#endif

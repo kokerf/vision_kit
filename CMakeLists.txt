@@ -5,7 +5,14 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
 endif()
 
+set(CMAKE_CXX_STANDARD 11)
 message("Build type: " ${CMAKE_BUILD_TYPE})
+
+# Debug output messages
+set(DEBUG_OUTPUT_MESSAGES true)
+if(DEBUG_OUTPUT_MESSAGES)
+	add_definitions(-D_OUTPUT_MESSAGES_)
+endif(DEBUG_OUTPUT_MESSAGES)
 
 if( CMAKE_BUILD_TYPE MATCHES "Debug" )
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}  -Wall -g -march=native -fopenmp")
@@ -38,3 +45,7 @@ set(Opticalflow_INCLUDE_DIR ${PROJECT_SOURCE_DIR}module/opticalflow/include)
 # Module epipolar_geometry
 add_subdirectory(module/epipolar_geometry)
 set(Epipolar_Geometry_INCLUDE_DIR ${PROJECT_SOURCE_DIR}module/epipolar_geometry/include)
+
+# Module alignment
+add_subdirectory(module/alignment)
+set(Alignment_INCLUDE_DIR ${PROJECT_SOURCE_DIR}module/alignment/include)

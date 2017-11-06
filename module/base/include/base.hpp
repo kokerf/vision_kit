@@ -47,25 +47,9 @@ void conv_16s(const cv::Mat& src, cv::Mat& dest, const cv::Mat& kernel, const in
  * @param src      [input image]
  * @param dest     [output image]
  * @param col_side [added cols for each side]
- * @param row_side [added rows for eache side]
+ * @param row_side [added rows for each side]
  */
 void makeBorders(const cv::Mat& src, cv::Mat& dest, const int col_side = 1, const int row_side = 1);
-
-/**
- * [align2D to align a pitch to another image]
- * @param  T        [templet image]
- * @param  I        [destination image]
- * @param  GTx      [gradient of templet in x]
- * @param  GTy      [gradient of templet in x]
- * @param  size     [pitch size]
- * @param  p        [centre of the pitch in templet]
- * @param  q        [centre of the pitch in destination]
- * @param  EPS      [Threshold value for termination criteria]
- * @param  MAX_ITER [Maximum iteration count]
- * @return          [return ture if found]
- */
-bool align2D(const cv::Mat& T, const cv::Mat& I, const cv::Mat& GTx, const cv::Mat& GTy,
-    const cv::Size size, const cv::Point2f& p, cv::Point2f& q, const float EPS = 1E-5f, const int MAX_ITER = 100);
 
 //! https://github.com/uzh-rpg/rpg_vikit/blob/master/vikit_common/include/vikit/vision.h
 //! WARNING This function does not check whether the x/y is within the border
@@ -89,7 +73,7 @@ inline float interpolateMat_8u(const cv::Mat& mat, const float u, const float v)
 
 /**
  * [Normalize normalize points by isotropic scaling]
- * @param points      [points input for mormalizing]
+ * @param points      [points input for normalizing]
  * @param points_norm [normalized points]
  * @param T           [Transform matrix of normalizing]
  */
@@ -99,7 +83,7 @@ void Normalize(const std::vector<cv::Point2f>& points, std::vector<cv::Point2f>&
  * [transferError compute transfer error]
  * @param  p1  [point in the first image]
  * @param  p2  [point in the second image]
- * @param  H12 [3*3 arrary, homograph maxtrix from the first image to the second image]
+ * @param  H12 [3*3 arrary, homograph matrix from the first image to the second image]
  * @return     [transfer error]
  */
 inline float transferError(const cv::Point2f& p1, const cv::Point2f& p2, const float* H12)
