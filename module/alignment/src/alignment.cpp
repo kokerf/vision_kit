@@ -166,7 +166,7 @@ void getPatch(const cv::Mat &src_img, cv::Mat &dst_img, const cv::Point2f &centr
 */
 
 Align::Align(const cv::Mat& ref_patch, const cv::Mat& ref_gradx, const cv::Mat& ref_grady, std::vector<std::pair<int, int> > &partern) :
-    N(partern.size()), partern_(partern)
+    N(partern.size()), offset_(Eigen::Vector2d{ ref_patch.cols*0.5 , ref_patch.rows*0.5 }), partern_(partern)
 {
     ref_patch_.resize(N);
     ref_gradx_.resize(N);
@@ -176,8 +176,8 @@ Align::Align(const cv::Mat& ref_patch, const cv::Mat& ref_gradx, const cv::Mat& 
     {
         const int u = partern_[i].first;
         const int v = partern_[i].second;
-        partern_[i].first -= ref_patch.cols*0.5;
-        partern_[i].second -= ref_patch.rows*0.5;
+        partern_[i].first -= offset_[0];
+        partern_[i].second -= offset_[1];
 
         ref_patch_[i] = ref_patch.at<float>(v, u);
         ref_gradx_[i]= ref_gradx.at<float>(v, u);
@@ -262,6 +262,12 @@ bool Align::run(const cv::Mat& cur_img, Eigen::VectorXd &estimate, const size_t 
     size_t iter = 0;
     while(iter++ < MAX_ITER)
     {
+        if(estimate_[0] < offset_[0] || estimate_[1] < offset_[1] || estimate_[0] + offset_[0] >= cur_img.cols - 1 || estimate_[1] + offset_[1] >= cur_img.rows - 1)
+        {
+            std::cerr << "Error! The estimate pixel location is out of scope!"<< std::endl;
+            break;
+        }
+
         steady_clock::time_point t2 = steady_clock::now();
         const double mean_error = computeResiduals(cur_img);
 
@@ -294,6 +300,74 @@ bool Align::run(const cv::Mat& cur_img, Eigen::VectorXd &estimate, const size_t 
 
 
     return converged;
+}
+
+/**
+*   Class Align2D
+*/
+void Align2D::perCompute()
+{
+    H_.resize(2, 2);
+    Jac_.resize(2, N);
+    Jres_.resize(2);
+    H_.setZero();
+    Jac_.setZero();
+    
+    for(size_t i = 0; i < N; i++)
+    {
+        Eigen::Vector2d J;
+        J[0] = ref_gradx_[i];
+        J[1] = ref_grady_[i];
+        Jac_.col(i) = J;
+        H_.noalias() += J*J.transpose();
+    }
+
+    Hinv_ = H_.inverse();
+}
+
+const double Align2D::computeResiduals(const cv::Mat &cur_img)
+{
+    Eigen::Vector2d J;
+    const double u = estimate_[0];
+    const double v = estimate_[1];
+
+    // compute interpolation weights
+    const int u_r = floor(u);
+    const int v_r = floor(v);
+    const float subpix_x = u - u_r;
+    const float subpix_y = v - v_r;
+    const float wTL = (1.0 - subpix_x)*(1.0 - subpix_y);
+    const float wTR = subpix_x * (1.0 - subpix_y);
+    const float wBL = (1.0 - subpix_x)*subpix_y;
+    const float wBR = subpix_x * subpix_y;
+
+    const int cur_step = cur_img.step.p[0];
+    double mean_error = 0;
+    Jres_.setZero();
+
+    for(size_t i = 0; i < N; i++)
+    {
+        const uint8_t* i_cur = (uint8_t*)(cur_img.ptr<uint8_t>(partern_[i].second + v_r) + partern_[i].first + u_r);
+        const double cur_intensity = wTL*i_cur[0] + wTR*i_cur[1] + wBL*i_cur[cur_step] + wBR*i_cur[cur_step + 1];
+        const double residual = cur_intensity - ref_patch_[i];
+
+        mean_error += residual*residual;
+
+        J = Jac_.col(i);
+        Jres_.noalias() += J * residual;
+    }
+    mean_error /= N;
+
+    return mean_error;
+}
+
+const double Align2D::update()
+{
+    Eigen::Vector2d dp = Hinv_ * Jres_;
+    estimate_[0] -= dp[0];
+    estimate_[1] -= dp[1];
+
+    return dp.dot(dp);
 }
 
 /**

@@ -13,7 +13,7 @@ int main(int argc, char const *argv[])
 {
     if(argc!=3)
     {
-        cout << "Usage: ./opticalflow image1 image2" <<endl;
+        cout << "Usage: ./test_opticalflow image1 image2" <<endl;
         return -1;
     }
 

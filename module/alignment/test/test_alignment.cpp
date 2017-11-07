@@ -88,14 +88,14 @@ int main(int argc, char const *argv[])
     //! vk::align2D function
     cv::Point2f cur_estimate = cur_pt + cv::Point2f(2, -2);
     std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
-    bool succeed = vk::align2D(cur_img, ref_template, ref_template_gradx, ref_template_grady, cur_estimate, 60);
+    bool succeed = vk::align2D(cur_img, ref_template, ref_template_gradx, ref_template_grady, cur_estimate, 200, 0.0001);
     std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
 
     std::cout << "Succeed: " << succeed << " , Corner match: [" << cur_pt.x << ", " << cur_pt.y << "]"
         << ", Aligen match: [" << cur_estimate.x << ", " << cur_estimate.y << "]" 
         << ", Time(ms): " << 0.001 * std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count() << std::endl;
     
-    //! vk::align2DI class
+    //! Partern
     std::vector<std::pair<int, int> > partern(64);
     for(size_t i = 0; i < 8; i++)
     {
@@ -105,11 +105,30 @@ int main(int argc, char const *argv[])
             partern[i * 8 + j].second = j;
         }
     }
-    Eigen::VectorXd estimate = Eigen::Vector3d{ cur_pt.x + 2, cur_pt.y - 2, 0 };
+    Eigen::Vector3d estimate = Eigen::Vector3d{ cur_pt.x + 2, cur_pt.y - 2, 0 };
+    cv::Mat cur_img_dark = cur_img*0.8;
 
-    vk::Align2DI align(ref_template, ref_template_gradx, ref_template_grady, partern);
-    align.run(cur_img, estimate);
-    align.printInfo();
+    //! vk::align2DI class
+    vk::Align2DI align1(ref_template, ref_template_gradx, ref_template_grady, partern);
+    //! * origin cur_img
+    Eigen::VectorXd estimate1 = estimate;
+    align1.run(cur_img, estimate1);
+    align1.printInfo();
+    //! * dark cur_img
+    estimate1 = estimate;
+    align1.run(cur_img_dark, estimate1);
+    align1.printInfo();
+
+    //! vk::align2D class
+    vk::Align2D align2(ref_template, ref_template_gradx, ref_template_grady, partern);
+    //! * origin cur_img
+    Eigen::VectorXd estimate2 = Eigen::Vector2d{ estimate[0],estimate[1] };
+    align2.run(cur_img, estimate2);
+    align2.printInfo();
+    //! * dark cur_img
+    estimate2 = Eigen::Vector2d{ estimate[0],estimate[1] };
+    align2.run(cur_img_dark, estimate2);
+    align2.printInfo();
 
     cv::waitKey(0);
 

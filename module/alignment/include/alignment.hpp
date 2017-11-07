@@ -64,6 +64,7 @@ protected:
 
 protected:
     const size_t N;
+    const Eigen::Vector2d offset_;
     Eigen::VectorXd ref_patch_;
     Eigen::VectorXd ref_gradx_;
     Eigen::VectorXd ref_grady_;
@@ -88,6 +89,23 @@ protected:
         Eigen::VectorXd estimate;
     };
     std::vector<InfoMsg> out_info_;
+};
+
+/**
+*   Class Align2D
+*   Module: pixel 2D drift
+*/
+class Align2D : public Align
+{
+public:
+    using Align::Align;
+
+protected:
+    void perCompute();
+
+    const double computeResiduals(const cv::Mat & cur_img);
+
+    const double update();
 };
 
 /**

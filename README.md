@@ -1,27 +1,54 @@
 # vision_kit
 
-A computor vision kit based on [OpenCV 3.1.0](https://github.com/opencv/opencv/tree/3.1.0). ***Far from stable***.
+A computer vision kit for algorithm verification. ***Far from stable***.
 
-
+## Required
+* [OpenCV 3.1.0](https://github.com/opencv/opencv/tree/3.1.0)
+* [Eigen3](https://github.com/RLovelett/eigen/tree/3.3.3)
 
 ## Modules
 
-### **Base**
+### 1. **Base**
 Some universal functions and some definitions.
 
-### **Optical Flow**
+### 2. **Optical Flow**
 Algorithms for Optical flow
 
 * **Pyramidal  Lucas-Kanada Algorithm**
 
-### **Epipolar Geometry**
+### 3. **Epipolar Geometry**
 Function about Fundamental Matrix. There are two methods to find the fundamental matrix
 * **8-Points Algorithm**. Normalized 8-point algorithm 
 
 * **RANSAC**. Self-adaptive sample by the inliers number of current best model.  Slove the fundamental matrix by 8-Points algorithm.
 
-### **Image patch Alignment**
-Use inverse compositional algorithm to align image patch in reference image to patch in current image. The model contains:
+### 4. **Image patch Alignment**
+Use **inverse compositional algorithm** to align image patch in reference image to patch in current image. The model contains:
+
+* **pixel 2D drift** 
+$$I_c(\mathbf x + \mathbf u) = I_r(\mathbf x)$$
 
 * **pixel 2D drift with bias(illumination or exposure differences)** 
 $$I_c(\mathbf x + \mathbf u) = I_r(\mathbf x) + \beta$$
+
+## Usage
+First of all, build the code.
+```
+mkdir build && cd build
+ccmake ..
+make -j
+```
+Then run the demos
+```
+# Base
+./test_base ../data/desk1.png
+
+# Optical Flow
+./test_opticalflow ../data/floor1.png ../data/floor2.png
+
+# Epipolar Geometry
+./test_fundamental ../data/desk1.png ../data/desk2.png
+
+# Image Alignment
+./test_alignment ../data/floor1.png ../data/floor2/png
+```
