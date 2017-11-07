@@ -60,7 +60,24 @@ void makeBorders(const cv::Mat& src, cv::Mat& dest, const int col_side = 1, cons
  * @param  v   [pixel location in rows]
  * @return     [the value of bilinear interpolation]
  */
-inline float interpolateMat_32f(const cv::Mat& mat, const float u, const float v);
+inline float interpolateMat_32f(const cv::Mat& mat, const float u, const float v)
+{
+    assert(mat.type() == CV_32F);
+    float x = floor(u);
+    float y = floor(v);
+    float subpix_x = u - x;
+    float subpix_y = v - y;
+    float wx0 = 1.0 - subpix_x;
+    float wx1 = subpix_x;
+    float wy0 = 1.0 - subpix_y;
+    float wy1 = subpix_y;
+
+    float val00 = mat.at<float>(y, x);
+    float val10 = mat.at<float>(y, x + 1);
+    float val01 = mat.at<float>(y + 1, x);
+    float val11 = mat.at<float>(y + 1, x + 1);
+    return (wx0*wy0)*val00 + (wx1*wy0)*val10 + (wx0*wy1)*val01 + (wx1*wy1)*val11;
+}
 
 /**
  * [interpolateMat_8u bilinear interpolation of uchar image]
@@ -69,7 +86,24 @@ inline float interpolateMat_32f(const cv::Mat& mat, const float u, const float v
  * @param  v   [pixel location in rows]
  * @return     [the value of bilinear interpolation]
  */
-inline float interpolateMat_8u(const cv::Mat& mat, const float u, const float v);
+inline float interpolateMat_8u(const cv::Mat& mat, const float u, const float v)
+{
+    assert(mat.type() == CV_8UC1);
+    int x = floor(u);
+    int y = floor(v);
+    float subpix_x = u - x;
+    float subpix_y = v - y;
+
+    float w00 = (1.0f - subpix_x)*(1.0f - subpix_y);
+    float w01 = (1.0f - subpix_x)*subpix_y;
+    float w10 = subpix_x*(1.0f - subpix_y);
+    float w11 = 1.0f - w00 - w01 - w10;
+
+    //! addr(Mij) = M.data + M.step[0]*i + M.step[1]*j
+    const int stride = mat.step.p[0];
+    unsigned char* ptr = mat.data + y*stride + x;
+    return w00*ptr[0] + w01*ptr[stride] + w10*ptr[1] + w11*ptr[stride + 1];
+}
 
 /**
  * [Normalize normalize points by isotropic scaling]

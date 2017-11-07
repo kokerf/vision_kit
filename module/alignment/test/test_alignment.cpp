@@ -1,4 +1,6 @@
 #include <iostream>
+#include <vector>
+#include <chrono>
 #include <algorithm>
 #include <opencv2/opencv.hpp>
 #include "alignment.hpp"
@@ -23,6 +25,7 @@ int main(int argc, char const *argv[])
         return -1;
     }
 
+    //! Match corner by ORB 
     cv::Ptr<cv::ORB> detector = cv::ORB::create(100);
     cv::BFMatcher matcher(cv::NORM_HAMMING);
 
@@ -41,7 +44,7 @@ int main(int argc, char const *argv[])
     cv::imshow("match", match_img);
     cv::waitKey(0);
 
-    
+    //! Get a pair of points
     cv::Point2f ref_pt, cur_pt;
     int idx = 0;
     const int win_size = 100;
@@ -69,21 +72,46 @@ int main(int argc, char const *argv[])
     cv::imshow("cur_patch", cur_patch);
     cv::waitKey(0);
 
+    //! Get reference template
     const int pattern_size = 10;
 
     cv::Mat ref_template;
     cv::Mat ref_template_gradx, ref_template_grady;
-    vk::Alignment::getPatch(ref_img, ref_template, ref_pt, pattern_size);
+    vk::getPatch(ref_img, ref_template, ref_pt, pattern_size);
     cv::Sobel(ref_template, ref_template_gradx, CV_32FC1, 1, 0);
     cv::Sobel(ref_template, ref_template_grady, CV_32FC1, 0, 1);
 
     ref_template.adjustROI(-1, -1, -1, -1);
     ref_template_gradx.adjustROI(-1, -1, -1, -1);
     ref_template_grady.adjustROI(-1, -1, -1, -1);
-    cv::Point2f cur_estimate = cur_pt + cv::Point2f(2, -2);
-    bool succeed = vk::Alignment::align2D(cur_img, ref_template, ref_template_gradx, ref_template_grady, cur_estimate, 60);
 
-    std::cout << "Succeed: " << succeed << " , Corner match: [" << cur_pt.x << ", " << cur_pt.y << "], Aligen match: [" << cur_estimate.x << ", " << cur_estimate.y << "]" << std::endl;
+    //! vk::align2D function
+    cv::Point2f cur_estimate = cur_pt + cv::Point2f(2, -2);
+    std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
+    bool succeed = vk::align2D(cur_img, ref_template, ref_template_gradx, ref_template_grady, cur_estimate, 60);
+    std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
+
+    std::cout << "Succeed: " << succeed << " , Corner match: [" << cur_pt.x << ", " << cur_pt.y << "]"
+        << ", Aligen match: [" << cur_estimate.x << ", " << cur_estimate.y << "]" 
+        << ", Time(ms): " << 0.001 * std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count() << std::endl;
+    
+    //! vk::align2DI class
+    std::vector<std::pair<int, int> > partern(64);
+    for(size_t i = 0; i < 8; i++)
+    {
+        for(size_t j = 0; j < 8; j++)
+        {
+            partern[i * 8 + j].first = i;
+            partern[i * 8 + j].second = j;
+        }
+    }
+    Eigen::VectorXd estimate = Eigen::Vector3d{ cur_pt.x + 2, cur_pt.y - 2, 0 };
+
+    vk::Align2DI align(ref_template, ref_template_gradx, ref_template_grady, partern);
+    align.run(cur_img, estimate);
+    align.printInfo();
+
+    cv::waitKey(0);
 
     return 0;
 }
