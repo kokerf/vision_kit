@@ -311,18 +311,18 @@ bool Align::run(const cv::Mat& cur_img, Eigen::VectorXd &estimate, const size_t 
 void Align2D::perCompute()
 {
     H_.resize(2, 2);
-    Jac_.resize(2, N);
+    Jac_.resize(N, 2);
     Jres_.resize(2);
     H_.setZero();
     Jac_.setZero();
     
     for(size_t i = 0; i < N; i++)
     {
-        Eigen::Vector2d J;
+        Eigen::RowVector2d J;
         J[0] = ref_gradx_[i];
         J[1] = ref_grady_[i];
-        Jac_.col(i) = J;
-        H_.noalias() += J*J.transpose();
+        Jac_.row(i) = J;
+        H_.noalias() += J.transpose() * J;
     }
 
     Hinv_ = H_.inverse();
@@ -330,7 +330,6 @@ void Align2D::perCompute()
 
 const double Align2D::computeResiduals(const cv::Mat &cur_img)
 {
-    Eigen::Vector2d J;
     const double u = estimate_[0];
     const double v = estimate_[1];
 
@@ -356,7 +355,7 @@ const double Align2D::computeResiduals(const cv::Mat &cur_img)
 
         mean_error += residual*residual;
 
-        J = Jac_.col(i);
+        Eigen::RowVector2d J = Jac_.row(i);
         Jres_.noalias() += J * residual;
     }
     mean_error /= N;
@@ -366,7 +365,7 @@ const double Align2D::computeResiduals(const cv::Mat &cur_img)
 
 const double Align2D::update()
 {
-    Eigen::Vector2d dp = Hinv_ * Jres_;
+    Eigen::Vector2d dp = Hinv_ * Jres_.transpose();
     estimate_[0] -= dp[0];
     estimate_[1] -= dp[1];
 
@@ -380,19 +379,19 @@ const double Align2D::update()
 void Align2DI::perCompute()
 {
     H_.resize(3, 3);
-    Jac_.resize(3, N);
+    Jac_.resize(N, 3);
     Jres_.resize(3);
     H_.setZero();
     Jac_.setZero();
     
     for(size_t i = 0; i < N; i++)
     {
-        Eigen::Vector3d J;
+        Eigen::RowVector3d J;
         J[0] = ref_gradx_[i];
         J[1] = ref_grady_[i];
         J[2] = 1;
-        Jac_.col(i) = J;
-        H_.noalias() += J*J.transpose();
+        Jac_.row(i) = J;
+        H_.noalias() += J.transpose() * J;
     }
 
     Hinv_ = H_.inverse();
@@ -400,7 +399,6 @@ void Align2DI::perCompute()
 
 const double Align2DI::computeResiduals(const cv::Mat &cur_img)
 {
-    Eigen::Vector3d J;
     const double u = estimate_[0];
     const double v = estimate_[1];
     const double idiff = estimate_[2];
@@ -426,7 +424,7 @@ const double Align2DI::computeResiduals(const cv::Mat &cur_img)
 
         mean_error += residual*residual;
 
-        J = Jac_.col(i);
+        Eigen::RowVector3d J = Jac_.row(i);
         Jres_.noalias() += J * residual;
     }
     mean_error /= N;
@@ -436,7 +434,7 @@ const double Align2DI::computeResiduals(const cv::Mat &cur_img)
 
 const double Align2DI::update()
 {
-    Eigen::Vector3d dp = Hinv_ * Jres_;
+    Eigen::Vector3d dp = Hinv_ * Jres_.transpose();
     estimate_[0] -= dp[0];
     estimate_[1] -= dp[1];
     estimate_[2] -= dp[2];
@@ -447,7 +445,7 @@ const double Align2DI::update()
 /**
 *   Class AlignESM2DI
 */
-#define USE_HESSIAN_MATRIX
+//#define USE_HESSIAN_MATRIX
 
 void AlignESM2DI::perCompute()
 {
@@ -456,7 +454,7 @@ void AlignESM2DI::perCompute()
     H_.resize(3, 3);
     Jres_.resize(3);
 #else
-    Jac_.resize(3, N);
+    Jac_.resize(N, 3);
     Res_.resize(N);
 #endif
     //! add 1 to offset, in case cross the border when calculate the gradient of current warp patch
@@ -466,7 +464,6 @@ void AlignESM2DI::perCompute()
 
 const double AlignESM2DI::computeResiduals(const cv::Mat &cur_img)
 {
-    Eigen::Vector3d J;
     const double u = estimate_[0];
     const double v = estimate_[1];
     const double idiff = estimate_[2];
@@ -504,16 +501,16 @@ const double AlignESM2DI::computeResiduals(const cv::Mat &cur_img)
         const double dy = 0.5f * ((wTL*i_cur[cur_step] + wTR*i_cur[1 + cur_step] + wBL*i_cur[cur_step * 2] + wBR*i_cur[cur_step * 2 + 1])
             - (wTL*i_cur[-cur_step] + wTR*i_cur[1 - cur_step] + wBL*i_cur[0] + wBR*i_cur[1]));
 
-        Eigen::Vector3d J;
+        Eigen::RowVector3d J;
         J[0] = 0.5f * (ref_gradx_[i] + dx);
         J[1] = 0.5f * (ref_grady_[i] + dy);
         J[2] = 1;
 
 #ifdef USE_HESSIAN_MATRIX
-        H_.noalias() += J * J.transpose();
+        H_.noalias() += J.transpose() * J;
         Jres_.noalias() += J * residual;
 #else
-        Jac_.col(i) = J;
+        Jac_.row(i) = J;
         Res_[i] = residual;
 #endif
         
@@ -527,10 +524,8 @@ const double AlignESM2DI::update()
 {
 #ifdef USE_HESSIAN_MATRIX
     Hinv_ = H_.inverse();
-    Eigen::Vector3d dp = Hinv_ * Jres_;
+    Eigen::Vector3d dp = Hinv_ * Jres_.transpose();
 #else
-    //! A = UDV^T => A = VDU^T
-    //! A+ = V(D+)U^T => (A^T)+ = U(D+)V^T
     Eigen::JacobiSVD<Eigen::MatrixXd> svd(Jac_, Eigen::ComputeThinU | Eigen::ComputeThinV);
     Eigen::VectorXd S = svd.singularValues();
     for(int i = 0; i < S.size(); i++)
@@ -539,7 +534,7 @@ const double AlignESM2DI::update()
             S[i] = 1.0 / S[i];
     }
     Eigen::DiagonalMatrix<double, Eigen::Dynamic> W(S);
-    Eigen::MatrixXd J_pinv = svd.matrixU() * W * svd.matrixV().transpose();
+    Eigen::MatrixXd J_pinv = svd.matrixV() * W * svd.matrixU().transpose();
     Eigen::Vector3d dp = J_pinv * Res_;
 #endif
     

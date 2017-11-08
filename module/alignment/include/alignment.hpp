@@ -70,12 +70,12 @@ protected:
     Eigen::VectorXd ref_grady_;
     std::vector<std::pair<int, int> > partern_;
 
-    Eigen::MatrixXd H_;
-    Eigen::MatrixXd Hinv_;
-    Eigen::MatrixXd Jac_;
-    Eigen::VectorXd Jres_;
+    Eigen::MatrixXd H_;                //! S*S
+    Eigen::MatrixXd Hinv_;             //! S*S
+    Eigen::MatrixXd Jac_;              //! N*S
+    Eigen::RowVectorXd Jres_;          //! 1*S
 
-    Eigen::VectorXd estimate_;
+    Eigen::VectorXd estimate_;         //! S*1
 
     //! struct to save print information
     struct InfoMsg {
@@ -94,6 +94,7 @@ protected:
 /**
 *   Class Align2D
 *   Module: pixel 2D drift
+*   Algorithm: Inverse Compositional
 */
 class Align2D : public Align
 {
@@ -111,6 +112,7 @@ protected:
 /**
 *   Class Align2DI
 *   Module: pixel 2D drift with bias(illumination or exposure differences)
+*   Algorithm: Inverse Compositional
 */
 class Align2DI : public Align
 {
