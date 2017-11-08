@@ -106,29 +106,44 @@ int main(int argc, char const *argv[])
         }
     }
     Eigen::Vector3d estimate = Eigen::Vector3d{ cur_pt.x + 2, cur_pt.y - 2, 0 };
-    cv::Mat cur_img_dark = cur_img*0.8;
-
-    //! vk::align2DI class
-    vk::Align2DI align1(ref_template, ref_template_gradx, ref_template_grady, partern);
-    //! * origin cur_img
-    Eigen::VectorXd estimate1 = estimate;
-    align1.run(cur_img, estimate1);
-    align1.printInfo();
-    //! * dark cur_img
-    estimate1 = estimate;
-    align1.run(cur_img_dark, estimate1);
-    align1.printInfo();
+    cv::Mat cur_img_dark = cur_img - 25;
 
     //! vk::align2D class
     vk::Align2D align2(ref_template, ref_template_gradx, ref_template_grady, partern);
     //! * origin cur_img
-    Eigen::VectorXd estimate2 = Eigen::Vector2d{ estimate[0],estimate[1] };
-    align2.run(cur_img, estimate2);
+    std::cout << "\n== vk::align2D with cur_img" << std::endl;
+    Eigen::VectorXd estimate1 = Eigen::Vector2d{ estimate[0],estimate[1] };
+    align2.run(cur_img, estimate1);
     align2.printInfo();
     //! * dark cur_img
-    estimate2 = Eigen::Vector2d{ estimate[0],estimate[1] };
-    align2.run(cur_img_dark, estimate2);
+    std::cout << "\n== vk::align2D with cur_img_dark" << std::endl;
+    estimate1 = Eigen::Vector2d{ estimate[0],estimate[1] };
+    align2.run(cur_img_dark, estimate1);
     align2.printInfo();
+
+    //! vk::align2DI class
+    vk::Align2DI align1(ref_template, ref_template_gradx, ref_template_grady, partern);
+    //! * origin cur_img
+    std::cout << "\n== vk::align2DI with cur_img" << std::endl;
+    Eigen::VectorXd estimate2 = estimate;
+    align1.run(cur_img, estimate2);
+    align1.printInfo();
+    //! * dark cur_img
+    std::cout << "\n== vk::align2DI with cur_img_dark" << std::endl;
+    estimate2 = estimate;
+    align1.run(cur_img_dark, estimate2);
+    align1.printInfo();
+
+    //! vk::AlignESM2DI class
+    vk::AlignESM2DI align3(ref_template, ref_template_gradx, ref_template_grady, partern);
+    std::cout << "\n== vk::AlignESM2DI with cur_img" << std::endl;
+    Eigen::VectorXd estimate3 = estimate;
+    align3.run(cur_img, estimate3);
+    align3.printInfo();
+    std::cout << "\n== vk::AlignESM2DI with cur_img_dark" << std::endl;
+    estimate3 = estimate;
+    align3.run(cur_img_dark, estimate3);
+    align3.printInfo();
 
     cv::waitKey(0);
 

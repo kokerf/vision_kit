@@ -56,15 +56,15 @@ public:
 
 protected:
     //! virtual function, which should be override in child class
-    virtual void perCompute() {};
+    virtual void perCompute() = 0;
 
-    virtual const double computeResiduals(const cv::Mat& cur_img) { return 0; }
+    virtual const double computeResiduals(const cv::Mat& cur_img) = 0;
 
-    virtual const double update() { return 0; }
+    virtual const double update() = 0;
 
 protected:
     const size_t N;
-    const Eigen::Vector2d offset_;
+    Eigen::Vector2d offset_;
     Eigen::VectorXd ref_patch_;
     Eigen::VectorXd ref_gradx_;
     Eigen::VectorXd ref_grady_;
@@ -123,6 +123,27 @@ protected:
     const double computeResiduals(const cv::Mat & cur_img);
 
     const double update();
+};
+
+/**
+*   Class AlignESM2DI
+*   Module: pixel 2D drift with bias(illumination or exposure differences)
+*   Algorithm: Efficient Second-order Minimization
+*/
+class AlignESM2DI : public Align2DI
+{
+public:
+    using Align2DI::Align2DI;
+
+protected:
+    void perCompute();
+
+    const double computeResiduals(const cv::Mat & cur_img);
+
+    const double update();
+protected:
+
+    Eigen::VectorXd Res_;
 };
 
 }//! vk

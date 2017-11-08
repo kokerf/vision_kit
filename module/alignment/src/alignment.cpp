@@ -1,6 +1,7 @@
 #include <iostream>
 #include <iomanip>
 #include <Eigen/LU>
+#include <Eigen/Dense> 
 #include "alignment.hpp"
 
 namespace vk{
@@ -166,11 +167,13 @@ void getPatch(const cv::Mat &src_img, cv::Mat &dst_img, const cv::Point2f &centr
 */
 
 Align::Align(const cv::Mat& ref_patch, const cv::Mat& ref_gradx, const cv::Mat& ref_grady, std::vector<std::pair<int, int> > &partern) :
-    N(partern.size()), offset_(Eigen::Vector2d{ ref_patch.cols*0.5 , ref_patch.rows*0.5 }), partern_(partern)
+    N(partern.size()), partern_(partern)
 {
     ref_patch_.resize(N);
     ref_gradx_.resize(N);
     ref_grady_.resize(N);
+
+    offset_ = Eigen::Vector2d{ ref_patch.cols*0.5 , ref_patch.rows*0.5 };
 
     for(size_t i = 0; i < N; i++)
     {
@@ -334,12 +337,12 @@ const double Align2D::computeResiduals(const cv::Mat &cur_img)
     // compute interpolation weights
     const int u_r = floor(u);
     const int v_r = floor(v);
-    const float subpix_x = u - u_r;
-    const float subpix_y = v - v_r;
-    const float wTL = (1.0 - subpix_x)*(1.0 - subpix_y);
-    const float wTR = subpix_x * (1.0 - subpix_y);
-    const float wBL = (1.0 - subpix_x)*subpix_y;
-    const float wBR = subpix_x * subpix_y;
+    const double subpix_x = u - u_r;
+    const double subpix_y = v - v_r;
+    const double wTL = (1.0 - subpix_x)*(1.0 - subpix_y);
+    const double wTR = subpix_x * (1.0 - subpix_y);
+    const double wBL = (1.0 - subpix_x)*subpix_y;
+    const double wBR = subpix_x * subpix_y;
 
     const int cur_step = cur_img.step.p[0];
     double mean_error = 0;
@@ -393,7 +396,6 @@ void Align2DI::perCompute()
     }
 
     Hinv_ = H_.inverse();
-
 }
 
 const double Align2DI::computeResiduals(const cv::Mat &cur_img)
@@ -405,12 +407,12 @@ const double Align2DI::computeResiduals(const cv::Mat &cur_img)
     // compute interpolation weights
     const int u_r = floor(u);
     const int v_r = floor(v);
-    const float subpix_x = u - u_r;
-    const float subpix_y = v - v_r;
-    const float wTL = (1.0 - subpix_x)*(1.0 - subpix_y);
-    const float wTR = subpix_x * (1.0 - subpix_y);
-    const float wBL = (1.0 - subpix_x)*subpix_y;
-    const float wBR = subpix_x * subpix_y;
+    const double subpix_x = u - u_r;
+    const double subpix_y = v - v_r;
+    const double wTL = (1.0 - subpix_x)*(1.0 - subpix_y);
+    const double wTR = subpix_x * (1.0 - subpix_y);
+    const double wBL = (1.0 - subpix_x)*subpix_y;
+    const double wBR = subpix_x * subpix_y;
 
     const int cur_step = cur_img.step.p[0];
     double mean_error = 0;
@@ -435,6 +437,112 @@ const double Align2DI::computeResiduals(const cv::Mat &cur_img)
 const double Align2DI::update()
 {
     Eigen::Vector3d dp = Hinv_ * Jres_;
+    estimate_[0] -= dp[0];
+    estimate_[1] -= dp[1];
+    estimate_[2] -= dp[2];
+
+    return dp.dot(dp);
+}
+
+/**
+*   Class AlignESM2DI
+*/
+#define USE_HESSIAN_MATRIX
+
+void AlignESM2DI::perCompute()
+{
+
+#ifdef USE_HESSIAN_MATRIX
+    H_.resize(3, 3);
+    Jres_.resize(3);
+#else
+    Jac_.resize(3, N);
+    Res_.resize(N);
+#endif
+    //! add 1 to offset, in case cross the border when calculate the gradient of current warp patch
+    offset_[0] += 1;
+    offset_[1] += 1;
+}
+
+const double AlignESM2DI::computeResiduals(const cv::Mat &cur_img)
+{
+    Eigen::Vector3d J;
+    const double u = estimate_[0];
+    const double v = estimate_[1];
+    const double idiff = estimate_[2];
+    // compute interpolation weights
+    const int u_r = floor(u);
+    const int v_r = floor(v);
+    const double subpix_x = u - u_r;
+    const double subpix_y = v - v_r;
+    const double wTL = (1.0 - subpix_x)*(1.0 - subpix_y);
+    const double wTR = subpix_x * (1.0 - subpix_y);
+    const double wBL = (1.0 - subpix_x)*subpix_y;
+    const double wBR = subpix_x * subpix_y;
+
+    const int cur_step = cur_img.step.p[0];
+    double mean_error = 0;
+
+#ifdef USE_HESSIAN_MATRIX
+    H_.setZero();
+    Jres_.setZero();
+#else
+    //Jac_.setZero();
+    //Res_.setZero();
+#endif
+
+    for(size_t i = 0; i < N; i++)
+    {
+        const uint8_t* i_cur = (uint8_t*)(cur_img.ptr<uint8_t>(partern_[i].second + v_r) + partern_[i].first + u_r);
+        const double cur_intensity = wTL*i_cur[0] + wTR*i_cur[1] + wBL*i_cur[cur_step] + wBR*i_cur[cur_step + 1];
+        const double residual = cur_intensity - ref_patch_[i] + idiff;
+
+        mean_error += residual*residual;
+
+        const double dx = 0.5f * ((wTL*i_cur[1] + wTR*i_cur[2] + wBL*i_cur[cur_step + 1] + wBR*i_cur[cur_step + 2])
+            - (wTL*i_cur[-1] + wTR*i_cur[0] + wBL*i_cur[cur_step - 1] + wBR*i_cur[cur_step]));
+        const double dy = 0.5f * ((wTL*i_cur[cur_step] + wTR*i_cur[1 + cur_step] + wBL*i_cur[cur_step * 2] + wBR*i_cur[cur_step * 2 + 1])
+            - (wTL*i_cur[-cur_step] + wTR*i_cur[1 - cur_step] + wBL*i_cur[0] + wBR*i_cur[1]));
+
+        Eigen::Vector3d J;
+        J[0] = 0.5f * (ref_gradx_[i] + dx);
+        J[1] = 0.5f * (ref_grady_[i] + dy);
+        J[2] = 1;
+
+#ifdef USE_HESSIAN_MATRIX
+        H_.noalias() += J * J.transpose();
+        Jres_.noalias() += J * residual;
+#else
+        Jac_.col(i) = J;
+        Res_[i] = residual;
+#endif
+        
+    }
+    mean_error /= N;
+
+    return mean_error;
+}
+
+const double AlignESM2DI::update()
+{
+#ifdef USE_HESSIAN_MATRIX
+    Hinv_ = H_.inverse();
+    Eigen::Vector3d dp = Hinv_ * Jres_;
+#else
+    //! A = UDV^T => A = VDU^T
+    //! A+ = V(D+)U^T => (A^T)+ = U(D+)V^T
+    Eigen::JacobiSVD<Eigen::MatrixXd> svd(Jac_, Eigen::ComputeThinU | Eigen::ComputeThinV);
+    Eigen::VectorXd S = svd.singularValues();
+    for(int i = 0; i < S.size(); i++)
+    {
+        if(S[i] != 0)
+            S[i] = 1.0 / S[i];
+    }
+    Eigen::DiagonalMatrix<double, Eigen::Dynamic> W(S);
+    Eigen::MatrixXd J_pinv = svd.matrixU() * W * svd.matrixV().transpose();
+    Eigen::Vector3d dp = J_pinv * Res_;
+#endif
+    
     estimate_[0] -= dp[0];
     estimate_[1] -= dp[1];
     estimate_[2] -= dp[2];

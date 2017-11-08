@@ -23,12 +23,12 @@ Function about Fundamental Matrix. There are two methods to find the fundamental
 * **RANSAC**. Self-adaptive sample by the inliers number of current best model.  Slove the fundamental matrix by 8-Points algorithm.
 
 ### 4. **Image patch Alignment**
-Use **inverse compositional algorithm** to align image patch in reference image to patch in current image. The model contains:
+Use **Inverse Compositional** and **Efficient Second-order Minimization** algorithm to align image patch in reference image to patch in current image. The model contains:
 
-* **pixel 2D drift** 
+* **pixel 2D drift** (IV)
 $$I_c(\mathbf x + \mathbf u) = I_r(\mathbf x)$$
 
-* **pixel 2D drift with bias(illumination or exposure differences)** 
+* **pixel 2D drift with bias(illumination or exposure differences)** (IV, ESM)
 $$I_c(\mathbf x + \mathbf u) = I_r(\mathbf x) + \beta$$
 
 ## Usage
