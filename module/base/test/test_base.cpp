@@ -2,27 +2,28 @@
 #include <stdint.h>
 #include <opencv2/opencv.hpp>
 #include "base.hpp"
+#include "util.hpp"
 
 using namespace std;
-using namespace cv;
 
 int main(int argc, char const *argv[])
 {
-    if(argc!=2)
+    if(argc != 3)
     {
-        cout << "Usage: ./test_base image" <<endl;
+        cout << "Usage: ./test_base image1 image2" <<endl;
         return -1;
     }
 
     //! Load image
-    Mat origin = cv::imread(argv[1]);
-    if(origin.empty())
+    cv::Mat src_img = cv::imread(argv[1]);
+    cv::Mat dst_img = cv::imread(argv[2]);
+    if(src_img.empty())
     {
         cout << "Can not open image: " << argv[1] << endl;
         return -1;
     }
     cv::Mat gray;
-    cvtColor(origin, gray, COLOR_BGR2GRAY);
+    cv::cvtColor(src_img, gray, cv::COLOR_BGR2GRAY);
 
     //!
     //! Testing Pyramidal
@@ -35,8 +36,8 @@ int main(int argc, char const *argv[])
          << "--- Level: " << level << endl
          << "=================================" << endl;
 
-    vector<Mat> images;
-    level = vk::computePyramid(origin, images, scale, level);
+    vector<cv::Mat> images;
+    level = vk::computePyramid(src_img, images, scale, level);
     uint16_t  height = images[0].rows;
     uint16_t  width = 0;
     for(uint16_t i = 0; i < level+1; i++)
@@ -44,7 +45,7 @@ int main(int argc, char const *argv[])
         width += images[i].cols;
     }
 
-    cv::Mat pyramid(height, width, origin.type());
+    cv::Mat pyramid(height, width, src_img.type());
     uint16_t cols = 0;
     for(uint16_t i = 0; i < level+1; i++)
     {
@@ -52,8 +53,8 @@ int main(int argc, char const *argv[])
         cols += images[i].cols;
     }
 
-    imshow("pyramid", pyramid);
-    waitKey(0);
+    cv::imshow("pyramid", pyramid);
+    cv::waitKey(0);
     cv::destroyWindow("pyramid");
 
     //!
@@ -63,9 +64,9 @@ int main(int argc, char const *argv[])
         << "=================================" << endl
         << "--- Testing  convolution          " << endl
         << "=================================" << endl;
-    cv::Mat kernel1 = (Mat_<float>(3, 3) << -1, 0, 1, -2, 0, 2, -1, 0, 1);
-    cv::Mat kernel2 = (Mat_<float>(3,3)<< -1,-2,-1, 0, 0, 0, 1, 2, 1);
-    cv::Mat kernel3 = (Mat_<float>(3,3)<< 1, 1, 1, 1, 1, 1, 1, 1, 1);
+    cv::Mat kernel1 = (cv::Mat_<float>(3, 3) << -1, 0, 1, -2, 0, 2, -1, 0, 1);
+    cv::Mat kernel2 = (cv::Mat_<float>(3,3)<< -1,-2,-1, 0, 0, 0, 1, 2, 1);
+    cv::Mat kernel3 = (cv::Mat_<float>(3,3)<< 1, 1, 1, 1, 1, 1, 1, 1, 1);
     cv::Mat convolution1, convolution2, convolution3;
     vk::conv_32f(gray, convolution1, kernel1, 8);
     vk::conv_32f(gray, convolution2, kernel2, 8);
@@ -74,9 +75,27 @@ int main(int argc, char const *argv[])
     convolution1.copyTo(convolution.colRange(0, gray.cols));
     convolution2.copyTo(convolution.colRange(gray.cols, gray.cols*2));
     convolution3.copyTo(convolution.colRange(gray.cols*2, gray.cols*3));
-    imshow("convolution", convolution);
-    waitKey(0);
+    cv::imshow("convolution", convolution);
+    cv::waitKey(0);
     cv::destroyWindow("convolution");
+
+    //!
+    //! Testing match
+    //!
+    cout << endl
+        << "=================================" << endl
+        << "--- Testing  match          " << endl
+        << "=================================" << endl;
+    vector<cv::Point2f> src_pt, dst_pt;
+    cv::Mat src_gray, dst_gray;
+    cv::cvtColor(src_img, src_gray, cv::COLOR_RGB2GRAY);
+    cv::cvtColor(dst_img, dst_gray, cv::COLOR_RGB2GRAY);
+    vk::getCorrespondPoints(src_gray, dst_gray, src_pt, dst_pt, 40);
+    cv::Mat match;
+    vk::drowMatchPoits(src_img, dst_img, src_pt, dst_pt, match);
+    cv::imshow("match", match);
+    cv::waitKey(0);
+    cv::destroyWindow("match");
 
     return 0;
 }

@@ -41,7 +41,7 @@ make -j
 Then run the demos
 ```
 # Base
-./test_base ../data/desk1.png
+./test_base ../data/desk1.png ../data/desk2.png
 
 # Optical Flow
 ./test_opticalflow ../data/floor1.png ../data/floor2.png
