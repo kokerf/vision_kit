@@ -44,7 +44,7 @@ int main(int argc, char const *argv[])
 
     if(matches.size() < 8)
     {
-        std::cout << "No enough match points! Please ajust the parameters in keypoint matching or change the input images" << std::endl;
+        std::cout << "No enough match points! Please adjust the parameters in keypoint matching or change the input images" << std::endl;
         return -1;
     }
 

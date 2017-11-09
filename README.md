@@ -14,13 +14,13 @@ Some universal functions and some definitions.
 ### 2. **Optical Flow**
 Algorithms for Optical flow
 
-* **Pyramidal  Lucas-Kanada Algorithm**
+* **Pyramidal Lucas-Kanada Algorithm**
 
 ### 3. **Epipolar Geometry**
 Function about Fundamental Matrix. There are two methods to find the fundamental matrix
 * **8-Points Algorithm**. Normalized 8-point algorithm 
 
-* **RANSAC**. Self-adaptive sample by the inliers number of current best model.  Slove the fundamental matrix by 8-Points algorithm.
+* **RANSAC**. Self-adaptive sample by the inliers number of current best model.  Solve the fundamental matrix by 8-Points algorithm.
 
 ### 4. **Image patch Alignment**
 Use **Inverse Compositional** and **Efficient Second-order Minimization** algorithm to align image patch in reference image to patch in current image. The model contains:
@@ -50,5 +50,6 @@ Then run the demos
 ./test_fundamental ../data/desk1.png ../data/desk2.png
 
 # Image Alignment
-./test_alignment ../data/floor1.png ../data/floor2/png
+./test_align2D ../data/floor1.png ../data/floor2/png
+./test_align1D ../data/floor1.png ../data/floor2/png
 ```

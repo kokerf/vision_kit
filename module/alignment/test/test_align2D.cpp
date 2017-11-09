@@ -4,7 +4,6 @@
 #include <algorithm>
 #include <opencv2/opencv.hpp>
 #include "alignment.hpp"
-#include "base.hpp"
 
 using namespace std;
 

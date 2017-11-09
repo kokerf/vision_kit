@@ -58,9 +58,9 @@ protected:
     //! virtual function, which should be override in child class
     virtual void perCompute() = 0;
 
-    virtual const double computeResiduals(const cv::Mat& cur_img) = 0;
+    virtual const bool computeResiduals(const cv::Mat &cur_img, double &mean_error) = 0;
 
-    virtual const double update() = 0;
+    virtual const bool update(double &step) = 0;
 
 protected:
     const size_t N;
@@ -104,9 +104,9 @@ public:
 protected:
     void perCompute();
 
-    const double computeResiduals(const cv::Mat & cur_img);
+    const bool computeResiduals(const cv::Mat& cur_img, double &error);
 
-    const double update();
+    const bool update(double &step);
 };
 
 /**
@@ -122,9 +122,9 @@ public:
 protected:
     void perCompute();
 
-    const double computeResiduals(const cv::Mat & cur_img);
+    const bool computeResiduals(const cv::Mat& cur_img, double &error);
 
-    const double update();
+    const bool update(double &step);
 };
 
 /**
@@ -140,12 +140,40 @@ public:
 protected:
     void perCompute();
 
-    const double computeResiduals(const cv::Mat & cur_img);
+    const bool computeResiduals(const cv::Mat& cur_img, double &error);
 
-    const double update();
+    const bool update(double &step);
 protected:
 
     Eigen::VectorXd Res_;
+};
+
+/**
+*   Class Align1DI
+*   Module: pixel drift in a direction with bias(illumination or exposure differences)
+*   Algorithm: Inverse Compositional
+*/
+class Align1DI : public Align2DI
+{
+public:
+    using Align2DI::Align2DI;
+
+    bool run(const cv::Mat& cur_img, Eigen::VectorXd &estimate, const Eigen::Vector2d &pixel, const Eigen::Vector2d &direction, const size_t MAX_ITER = 30, const double EPS = 1E-2f);
+
+protected:
+    void perCompute();
+
+    const bool computeResiduals(const cv::Mat& cur_img, double &error);
+
+    const bool update(double &step);
+
+protected:
+    Eigen::Vector2d Pixel_;
+    Eigen::Vector2d Dir_;
+
+    Eigen::Matrix2d H_;
+    Eigen::VectorXd Jac_;
+    Eigen::RowVector2d Jres_;
 };
 
 }//! vk

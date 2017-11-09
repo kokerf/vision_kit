@@ -265,16 +265,16 @@ bool Align::run(const cv::Mat& cur_img, Eigen::VectorXd &estimate, const size_t 
     size_t iter = 0;
     while(iter++ < MAX_ITER)
     {
-        if(estimate_[0] < offset_[0] || estimate_[1] < offset_[1] || estimate_[0] + offset_[0] >= cur_img.cols - 1 || estimate_[1] + offset_[1] >= cur_img.rows - 1)
-        {
-            std::cerr << "Error! The estimate pixel location is out of scope!"<< std::endl;
-            break;
-        }
-
         steady_clock::time_point t2 = steady_clock::now();
-        const double mean_error = computeResiduals(cur_img);
 
-        const double step_squared = update();
+        double mean_error = 0;
+        if (!computeResiduals(cur_img, mean_error))
+            break;
+
+        double step_squared = 0;
+        if (!update(step_squared))
+            break;
+
         steady_clock::time_point t3 = steady_clock::now();
 
         //! Output Information
@@ -328,10 +328,16 @@ void Align2D::perCompute()
     Hinv_ = H_.inverse();
 }
 
-const double Align2D::computeResiduals(const cv::Mat &cur_img)
+const bool Align2D::computeResiduals(const cv::Mat &cur_img, double &mean_error)
 {
     const double u = estimate_[0];
     const double v = estimate_[1];
+
+    if(u < offset_[0] || v < offset_[1] || u + offset_[0] >= cur_img.cols - 1 || v + offset_[1] >= cur_img.rows - 1)
+    {
+        std::cerr << "Error! The estimate pixel location is out of scope!" << std::endl;
+        return false;
+    }
 
     // compute interpolation weights
     const int u_r = floor(u);
@@ -344,9 +350,9 @@ const double Align2D::computeResiduals(const cv::Mat &cur_img)
     const double wBR = subpix_x * subpix_y;
 
     const int cur_step = cur_img.step.p[0];
-    double mean_error = 0;
-    Jres_.setZero();
 
+    mean_error = 0;
+    Jres_.setZero();
     for(size_t i = 0; i < N; i++)
     {
         const uint8_t* i_cur = (uint8_t*)(cur_img.ptr<uint8_t>(partern_[i].second + v_r) + partern_[i].first + u_r);
@@ -360,16 +366,17 @@ const double Align2D::computeResiduals(const cv::Mat &cur_img)
     }
     mean_error /= N;
 
-    return mean_error;
+    return true;
 }
 
-const double Align2D::update()
+const bool Align2D::update(double &step)
 {
     Eigen::Vector2d dp = Hinv_ * Jres_.transpose();
     estimate_[0] -= dp[0];
     estimate_[1] -= dp[1];
 
-    return dp.dot(dp);
+    step = dp.dot(dp);
+    return true;
 }
 
 /**
@@ -397,11 +404,18 @@ void Align2DI::perCompute()
     Hinv_ = H_.inverse();
 }
 
-const double Align2DI::computeResiduals(const cv::Mat &cur_img)
+const bool Align2DI::computeResiduals(const cv::Mat &cur_img, double &mean_error)
 {
     const double u = estimate_[0];
     const double v = estimate_[1];
     const double idiff = estimate_[2];
+
+    if (u < offset_[0] || v < offset_[1] || u + offset_[0] >= cur_img.cols - 1 || v + offset_[1] >= cur_img.rows - 1)
+    {
+        std::cerr << "Error! The estimate pixel location is out of scope!" << std::endl;
+        return false;
+    }
+
     // compute interpolation weights
     const int u_r = floor(u);
     const int v_r = floor(v);
@@ -413,9 +427,9 @@ const double Align2DI::computeResiduals(const cv::Mat &cur_img)
     const double wBR = subpix_x * subpix_y;
 
     const int cur_step = cur_img.step.p[0];
-    double mean_error = 0;
-    Jres_.setZero();
 
+    mean_error = 0;
+    Jres_.setZero();
     for(size_t i = 0; i < N; i++)
     {
         const uint8_t* i_cur = (uint8_t*)(cur_img.ptr<uint8_t>(partern_[i].second + v_r) + partern_[i].first + u_r);
@@ -429,17 +443,18 @@ const double Align2DI::computeResiduals(const cv::Mat &cur_img)
     }
     mean_error /= N;
 
-    return mean_error;
+    return true;
 }
 
-const double Align2DI::update()
+const bool Align2DI::update(double &step)
 {
     Eigen::Vector3d dp = Hinv_ * Jres_.transpose();
     estimate_[0] -= dp[0];
     estimate_[1] -= dp[1];
     estimate_[2] -= dp[2];
 
-    return dp.dot(dp);
+    step = dp.dot(dp);
+    return true;
 }
 
 /**
@@ -462,11 +477,18 @@ void AlignESM2DI::perCompute()
     offset_[1] += 1;
 }
 
-const double AlignESM2DI::computeResiduals(const cv::Mat &cur_img)
+const bool AlignESM2DI::computeResiduals(const cv::Mat &cur_img, double &mean_error)
 {
     const double u = estimate_[0];
     const double v = estimate_[1];
     const double idiff = estimate_[2];
+
+    if (u < offset_[0] || v < offset_[1] || u + offset_[0] >= cur_img.cols - 1 || v + offset_[1] >= cur_img.rows - 1)
+    {
+        std::cerr << "Error! The estimate pixel location is out of scope!" << std::endl;
+        return false;
+    }
+
     // compute interpolation weights
     const int u_r = floor(u);
     const int v_r = floor(v);
@@ -478,7 +500,6 @@ const double AlignESM2DI::computeResiduals(const cv::Mat &cur_img)
     const double wBR = subpix_x * subpix_y;
 
     const int cur_step = cur_img.step.p[0];
-    double mean_error = 0;
 
 #ifdef USE_HESSIAN_MATRIX
     H_.setZero();
@@ -488,7 +509,8 @@ const double AlignESM2DI::computeResiduals(const cv::Mat &cur_img)
     //Res_.setZero();
 #endif
 
-    for(size_t i = 0; i < N; i++)
+    mean_error = 0;
+    for (size_t i = 0; i < N; i++)
     {
         const uint8_t* i_cur = (uint8_t*)(cur_img.ptr<uint8_t>(partern_[i].second + v_r) + partern_[i].first + u_r);
         const double cur_intensity = wTL*i_cur[0] + wTR*i_cur[1] + wBL*i_cur[cur_step] + wBR*i_cur[cur_step + 1];
@@ -517,10 +539,10 @@ const double AlignESM2DI::computeResiduals(const cv::Mat &cur_img)
     }
     mean_error /= N;
 
-    return mean_error;
+    return true;
 }
 
-const double AlignESM2DI::update()
+const bool AlignESM2DI::update(double &step)
 {
 #ifdef USE_HESSIAN_MATRIX
     Hinv_ = H_.inverse();
@@ -542,7 +564,89 @@ const double AlignESM2DI::update()
     estimate_[1] -= dp[1];
     estimate_[2] -= dp[2];
 
-    return dp.dot(dp);
+    step = dp.dot(dp);
+    return true;
+}
+
+/**
+*   Class Align1DI
+*/
+bool Align1DI::run(const cv::Mat& cur_img, Eigen::VectorXd &estimate, const Eigen::Vector2d &pixel, const Eigen::Vector2d &direction, const size_t MAX_ITER, const double EPS)
+{
+    Pixel_ = pixel;
+    Dir_ = direction;
+    return Align2DI::run(cur_img, estimate, MAX_ITER, EPS);
+}
+
+void Align1DI::perCompute()
+{
+    Jac_.resize(N);
+
+    H_.setZero();
+    for(size_t i = 0; i < N; i++)
+    {
+        Eigen::Vector2d J;
+        J[0] = 0.5 * (ref_gradx_[i] * Dir_[0] + ref_grady_[i] * Dir_[1]);
+        J[1] = 1;
+        Jac_[i] = J[0];
+        H_.noalias() += J*J.transpose();
+    }
+
+    Hinv_ = H_.inverse();
+}
+
+const bool Align1DI::computeResiduals(const cv::Mat &cur_img, double &mean_error)
+{
+    const Eigen::Vector2d px = Pixel_ + estimate_[0] * Dir_;
+    const double u = px[0];
+    const double v = px[1];
+    const double idiff = estimate_[1];
+    if (u < offset_[0] || v < offset_[1] || u + offset_[0] >= cur_img.cols - 1 || v + offset_[1] >= cur_img.rows - 1)
+    {
+        std::cerr << "Error! The estimate pixel location is out of scope!" << std::endl;
+        return false;
+    }
+
+    // compute interpolation weights
+    const int u_r = floor(u);
+    const int v_r = floor(v);
+    const double subpix_x = u - u_r;
+    const double subpix_y = v - v_r;
+    const double wTL = (1.0 - subpix_x)*(1.0 - subpix_y);
+    const double wTR = subpix_x * (1.0 - subpix_y);
+    const double wBL = (1.0 - subpix_x)*subpix_y;
+    const double wBR = subpix_x * subpix_y;
+
+    const int cur_step = cur_img.step.p[0];
+    mean_error = 0;
+    Jres_.setZero();
+
+    for(size_t i = 0; i < N; i++)
+    {
+        const uint8_t* i_cur = (uint8_t*)(cur_img.ptr<uint8_t>(partern_[i].second + v_r) + partern_[i].first + u_r);
+        const double cur_intensity = wTL*i_cur[0] + wTR*i_cur[1] + wBL*i_cur[cur_step] + wBR*i_cur[cur_step + 1];
+        const double residual = cur_intensity - ref_patch_[i] + idiff;
+
+        mean_error += residual*residual;
+
+        Eigen::RowVector2d J;
+        J[0] = Jac_[i];
+        J[1] = 1;
+        Jres_.noalias() += J * residual;
+    }
+    mean_error /= N;
+
+    return true;
+}
+
+const bool Align1DI::update(double &step)
+{
+    Eigen::Vector2d dp = Hinv_ * Jres_.transpose();
+    estimate_[0] -= dp[0];
+    estimate_[1] -= dp[1];
+
+    step = dp.dot(dp);
+    return true;
 }
 
 }//! namespace vk
