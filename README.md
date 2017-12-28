@@ -35,7 +35,7 @@ $$I_c(\mathbf x + \mathbf u) = I_r(\mathbf x) + \beta$$
 First of all, build the code.
 ```
 mkdir build && cd build
-ccmake ..
+cmake ..
 make -j
 ```
 Then run the demos
@@ -50,6 +50,6 @@ Then run the demos
 ./test_fundamental ../data/desk1.png ../data/desk2.png
 
 # Image Alignment
-./test_align2D ../data/floor1.png ../data/floor2/png
-./test_align1D ../data/floor1.png ../data/floor2/png
+./test_align2D ../data/floor1.png ../data/floor2.png
+./test_align1D ../data/floor1.png ../data/floor2.png
 ```
